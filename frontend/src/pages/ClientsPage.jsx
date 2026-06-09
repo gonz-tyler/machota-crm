@@ -138,22 +138,22 @@ export default function ClientsPage() {
                         {client.name}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-800">
+                    <td className="px-6 py-4 text-gray-600">
                       <div className="flex items-center space-x-2">
-                        <Building2 size={14} className="text-gray-600" />
+                        <Building2 size={14} className="text-gray-400" />
                         <span className="text-sm">
                           {client.company || "N/A"}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2 text-sm text-gray-800">
-                        <Mail size={14} className="text-gray-600" />
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Mail size={14} className="text-gray-400" />
                         <span>{client.email}</span>
                       </div>
                       {client.phone && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-800 mt-1">
-                          <Phone size={14} className="text-gray-600" />
+                        <div className="flex items-center space-x-2 text-sm text-gray-600 mt-1">
+                          <Phone size={14} className="text-gray-400" />
                           <span>{client.phone}</span>
                         </div>
                       )}
