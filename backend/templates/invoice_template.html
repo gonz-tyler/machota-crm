@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Factura {{ invoice.invoice_number }}</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 20mm;
+      }
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #0f172a;
+        font-size: 11pt;
+        line-height: 1.5;
+      }
+      .header {
+        margin-bottom: 35px;
+        border-bottom: 2px solid #0f172a;
+        padding-bottom: 15px;
+      }
+      .invoice-title {
+        font-size: 28pt;
+        font-weight: bold;
+        color: #0f172a;
+        margin: 0;
+        letter-spacing: -1px;
+      }
+      .status-watermark {
+        color: #16a34a;
+        font-weight: bold;
+        border: 3px solid #16a34a;
+        display: inline-block;
+        padding: 4px 12px;
+        font-size: 14pt;
+        text-transform: uppercase;
+        margin-top: 5px;
+        transform: rotate(-5deg);
+      }
+      .status-unpaid {
+        color: #d97706;
+        border-color: #d97706;
+      }
+      .meta-table,
+      .details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+      }
+      .details-table th {
+        background-color: #0f172a;
+        color: #ffffff;
+        text-align: left;
+        padding: 12px;
+        font-size: 10pt;
+        text-transform: uppercase;
+      }
+      .details-table td {
+        padding: 12px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .amount-due-box {
+        float: right;
+        width: 45%;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <table style="width: 100%">
+        <tr>
+          <td>
+            <div class="invoice-title">FACTURA</div>
+            {% if invoice.status == 'Paid' %}
+            <div class="status-watermark">PAGADA</div>
+            {% else %}
+            <div class="status-watermark status-unpaid">PENDIENTE</div>
+            {% endif %}
+          </td>
+          <td class="text-right" style="vertical-align: top">
+            <strong>Factura #:</strong> {{ invoice.invoice_number }}<br />
+            <strong>Fecha Emisión:</strong> {{ invoice.issue_date|date:"d/m/Y"
+            }}<br />
+            <strong>Fecha Vencimiento:</strong> {{ invoice.due_date|date:"d/m/Y"
+            }}
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <table class="meta-table">
+      <tr>
+        <td style="width: 50%; vertical-align: top">
+          <span
+            style="
+              font-size: 9pt;
+              color: #64748b;
+              text-transform: uppercase;
+              font-weight: bold;
+            "
+            >Facturar A:</span
+          ><br />
+          <strong style="font-size: 12pt">{{ invoice.client.name }}</strong
+          ><br />
+          {% if invoice.client.company %}{{ invoice.client.company }}<br />
+          {% endif %} {{ invoice.client.email }}
+        </td>
+        <td style="width: 50%; vertical-align: top" class="text-right">
+          <span
+            style="
+              font-size: 9pt;
+              color: #64748b;
+              text-transform: uppercase;
+              font-weight: bold;
+            "
+            >Origen Factura:</span
+          ><br />
+          <strong>Concepto Principal:</strong> {{ invoice.presupuesto.title
+          }}<br />
+          <strong>Tipo de Documento:</strong> Conclusión Cobro {{
+          invoice.invoice_type }}<br />
+          <strong>Línea Base:</strong> Presupuesto #{{ invoice.presupuesto.id }}
+          v{{ invoice.presupuesto_version.version_number }}
+        </td>
+      </tr>
+    </table>
+
+    <table class="details-table">
+      <thead>
+        <tr>
+          <th>Concepto / Descripción Cobro</th>
+          <th class="text-right">Total Neto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Cobro de {{ invoice.invoice_type }}</strong> — Facturación
+            vinculada a la prestación del servicio "{{ invoice.presupuesto.title
+            }}" asignado bajo la categoría {{ invoice.presupuesto.event_type }}.
+          </td>
+          <td class="text-right" style="font-size: 12pt; font-weight: bold">
+            {{ invoice.amount }}€
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="amount-due-box">
+      <table style="width: 100%">
+        <tr>
+          <td style="font-size: 11pt; color: #475569">Total Facturado:</td>
+          <td
+            class="text-right"
+            style="font-size: 16pt; font-weight: bold; color: #0f172a"
+          >
+            {{ invoice.amount }}€
+          </td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>

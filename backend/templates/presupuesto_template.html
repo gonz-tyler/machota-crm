@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Presupuesto #{{ presupuesto.id }}</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 20mm;
+      }
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        font-size: 11pt;
+        line-height: 1.5;
+      }
+      .header {
+        margin-bottom: 30px;
+        border-bottom: 2px solid #2563eb;
+        padding-bottom: 15px;
+      }
+      .title {
+        font-size: 26pt;
+        font-weight: bold;
+        color: #2563eb;
+        margin: 0;
+      }
+      .meta-table,
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 25px;
+      }
+      .meta-table td {
+        padding: 4px 0;
+        vertical-align: top;
+      }
+      .section-heading {
+        font-size: 14pt;
+        font-weight: bold;
+        color: #1e3a8a;
+        margin-top: 20px;
+        margin-bottom: 10px;
+      }
+      .items-table th {
+        background-color: #2563eb;
+        color: #ffffff;
+        text-align: left;
+        padding: 10px;
+        font-weight: bold;
+      }
+      .items-table td {
+        padding: 10px;
+        border: 1px solid #e2e8f0;
+      }
+      .items-table tr:nth-child(even) {
+        background-color: #f8fafc;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .summary-box {
+        float: right;
+        width: 40%;
+        margin-top: 20px;
+        border-top: 2px solid #1e293b;
+        padding-top: 10px;
+      }
+      .total-row {
+        font-size: 14pt;
+        font-weight: bold;
+        color: #16a34a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <table style="width: 100%">
+        <tr>
+          <td><div class="title">PRESUPUESTO</div></td>
+          <td class="text-right" style="color: #64748b">
+            Ref: #{{ presupuesto.id }} · v{{ version.version_number }}
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <table class="meta-table">
+      <tr>
+        <td style="width: 50%">
+          <div class="section-heading">Preparado Para:</div>
+          <strong>{{ presupuesto.client_name }}</strong><br />
+          {% if presupuesto.client_company %}{{ presupuesto.client_company }}<br />{% endif %} 
+          {{ presupuesto.client_email }}
+        </td>
+        <td style="width: 50%" class="text-right">
+          <div class="section-heading">Detalles del Evento:</div>
+          <strong>Proyecto:</strong> {{ presupuesto.title }}<br />
+          <strong>Categoría:</strong> {{ presupuesto.event_type }}<br />
+          <strong>Inicio:</strong> {{ presupuesto.event_start|date:"d/m/Y H:i" }}<br />
+          <strong>Fin:</strong> {{ presupuesto.event_end|date:"d/m/Y H:i" }}
+        </td>
+      </tr>
+    </table>
+
+    <div class="section-heading">Servicios Contratados</div>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Descripción Servicio</th>
+          <th style="width: 15%">Cantidad</th>
+          <th style="width: 20%" class="text-right">Precio Unit.</th>
+          <th style="width: 20%" class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in version.line_items.all %}
+          {% if item.show_on_client_pdf %}
+          <tr>
+            <td>{{ item.display_name }}</td>
+            <td>{{ item.quantity }} {{ item.unit_label }}</td>
+            <td class="text-right">{{ item.unit_price }}€</td>
+            <td class="text-right">{{ item.line_total }}€</td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="summary-box">
+      <table style="width: 100%">
+        <tr class="total-row">
+          <td>Total:</td>
+          <td class="text-right">{{ version.total_amount }}€</td>
+        </tr>
+        <tr style="color: #64748b; font-size: 10pt">
+          <td>Depósito (50%):</td>
+          <td class="text-right">{% widthratio version.total_amount 2 1 %}€</td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>

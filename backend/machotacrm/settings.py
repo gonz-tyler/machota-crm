@@ -17,6 +17,33 @@ DEBUG = os.getenv('DEBUG') == 'True'
 
 ALLOWED_HOSTS = []
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# This allows your own domain's sub-origins to frame your generated PDFs
+# settings.py
+
+# Check if we are running locally or in production
+if DEBUG:
+    # 1. Disable the strict default SAMEORIGIN middleware block for local frames
+    X_FRAME_OPTIONS = 'ALLOWALL'
+    
+    # 2. Re-verify your development CORS origins accept the frontend ports
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+else:
+    # Keep your production environment completely locked down and secure
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# Ensure secure cookies and SSL redirects are active in production
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Application definition
 
@@ -54,10 +81,11 @@ ROOT_URLCONF = 'machotacrm.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',

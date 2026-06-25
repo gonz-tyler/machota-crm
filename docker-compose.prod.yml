@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    # Port 3306 is hidden from the internet for security. Only 'backend' can talk to it.
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    # Gunicorn handles multi-threaded web workers natively
+    command: gunicorn machotacrm.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/static
+    environment:
+      - DB_HOST=db
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=False
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: always
+    volumes:
+      - frontend_build:/usr/share/nginx/html
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    # Only expose port 80 to the public web browser
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - media_data:/app/media:ro
+      - static_data:/app/static:ro
+      - frontend_build:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  mysql_data:
+  media_data:
+  static_data:
+  frontend_build:

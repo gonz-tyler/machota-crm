@@ -20,6 +20,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app
+      - media_data:/app/media
     ports:
       - "8000:8000"
     environment:
@@ -48,3 +49,4 @@ services:
 
 volumes:
   mysql_data:
+  media_data:

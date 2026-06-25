@@ -91,15 +91,13 @@ export default function ClientsPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 h-screen">
       <header className="h-16 bg-white border-b flex items-center justify-between px-8 shrink-0">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Client Directory
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-800">Clientes</h2>
         <button
           onClick={() => setShowClientModal(true)}
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all active:scale-95"
         >
           <Plus size={18} />
-          <span>New Client</span>
+          <span>Nuevo Cliente</span>
         </button>
       </header>
 
@@ -107,23 +105,23 @@ export default function ClientsPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {loading ? (
             <div className="p-20 text-center text-gray-400 animate-pulse">
-              Loading database...
+              Cargando base de datos...
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-200">
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Client Details
+                    Detalles del Cliente
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Company
+                    Compañia
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Contact Info
+                    Info de Contacto
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">
-                    Actions
+                    Acciones
                   </th>
                 </tr>
               </thead>
@@ -200,7 +198,7 @@ export default function ClientsPage() {
             <form onSubmit={handleClientSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
+                  Nombre Completo
                 </label>
                 <input
                   required
@@ -212,7 +210,7 @@ export default function ClientsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
+                  Email
                 </label>
                 <input
                   required
@@ -225,7 +223,7 @@ export default function ClientsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name
+                  Compañia
                 </label>
                 <input
                   name="company"
@@ -236,7 +234,7 @@ export default function ClientsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
+                  Numero de Telefono
                 </label>
                 <input
                   name="phone"

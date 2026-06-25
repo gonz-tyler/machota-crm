@@ -8,9 +8,20 @@ ENV PYTHONUNBUFFERED=1
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install system dependencies required for MySQL and building Python packages
+# Install system dependencies required for MySQL and WeasyPrint
 RUN apt-get update \
-    && apt-get install -y pkg-config default-libmysqlclient-dev build-essential \
+    && apt-get install -y --no-install-recommends \
+    pkg-config \
+    default-libmysqlclient-dev \
+    build-essential \
+    python3-dev \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    fonts-liberation \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

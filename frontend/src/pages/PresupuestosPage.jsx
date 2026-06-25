@@ -8,20 +8,19 @@ import {
   Tag,
   Download,
   Euro,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  CheckCircle,
-  Clock,
-  ArrowRight,
   History,
   PackagePlus,
+  Trash2,
+  CheckCircle,
+  Send,
+  XCircle,
+  FilePenLine,
+  Receipt,
+  Scale,
 } from "lucide-react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & Styles
 // ---------------------------------------------------------------------------
 
 const EVENT_TYPES = [
@@ -49,109 +48,39 @@ const getBadgeStyle = (type) => {
 
 const getStatusStyle = (status) => {
   const map = {
-    Draft: "bg-gray-100 text-gray-700",
-    Sent: "bg-blue-100 text-blue-800",
-    Accepted: "bg-green-100 text-green-800",
-    Rejected: "bg-red-100 text-red-800",
-    Archived: "bg-gray-100 text-gray-400",
+    Draft: "bg-gray-100 text-gray-700 border-gray-200",
+    Sent: "bg-blue-100 text-blue-800 border-blue-200",
+    Accepted: "bg-green-100 text-green-800 border-green-200",
+    Rejected: "bg-red-100 text-red-800 border-red-200",
+    Archived: "bg-gray-100 text-gray-400 border-gray-200",
+  };
+  return map[status] || "bg-gray-100 text-gray-700";
+};
+
+const getDisplayStatus = (pres) => {
+  if (pres?.is_fully_paid) return "Completado";
+  if (pres?.has_final_invoice) return "Facturado";
+  return pres?.active_status || "—";
+};
+
+const getDisplayStatusStyle = (status) => {
+  const map = {
+    Completado: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    Facturado: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    Draft: "bg-gray-100 text-gray-700 border-gray-200",
+    Sent: "bg-blue-100 text-blue-800 border-blue-200",
+    Accepted: "bg-green-100 text-green-800 border-green-200",
+    Rejected: "bg-red-100 text-red-800 border-red-200",
+    Archived: "bg-gray-100 text-gray-400 border-gray-200",
   };
   return map[status] || "bg-gray-100 text-gray-700";
 };
 
 // ---------------------------------------------------------------------------
-// PDF builder — reads line items from a version
-// ---------------------------------------------------------------------------
-
-const buildPDF = (presupuesto, version) => {
-  const doc = new jsPDF();
-
-  doc.setFontSize(22);
-  doc.setTextColor(37, 99, 235);
-  doc.text("PRESUPUESTO", 14, 22);
-
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")}`, 14, 32);
-  doc.text(`Ref: #${presupuesto.id} · v${version.version_number}`, 14, 37);
-
-  doc.setTextColor(0);
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("Preparado para:", 14, 52);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`${presupuesto.client_name}`, 14, 59);
-  if (presupuesto.client_email) doc.text(presupuesto.client_email, 14, 64);
-
-  // Event details
-  autoTable(doc, {
-    startY: 73,
-    head: [["Detalles del evento", ""]],
-    body: [
-      ["Título", presupuesto.title],
-      ["Categoría", presupuesto.event_type],
-      ["Inicio", new Date(presupuesto.event_start).toLocaleString("es-ES")],
-      ["Fin", new Date(presupuesto.event_end).toLocaleString("es-ES")],
-    ],
-    theme: "plain",
-    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-    styles: { fontSize: 10, cellPadding: 4 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
-  });
-
-  // Line items — only show_on_client_pdf items
-  const visibleItems = (version.line_items || []).filter(
-    (li) => li.show_on_client_pdf,
-  );
-
-  if (visibleItems.length > 0) {
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [["Servicio", "Cantidad", "Precio unit.", "Total"]],
-      body: visibleItems.map((li) => [
-        li.display_name ||
-          li.client_display_name ||
-          li.catalog_item_name ||
-          "Servicio",
-        `${li.quantity} ${li.unit_label}`,
-        `${parseFloat(li.unit_price).toFixed(2)}€`,
-        `${parseFloat(li.line_total).toFixed(2)}€`,
-      ]),
-      theme: "striped",
-      headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-      styles: { fontSize: 10, cellPadding: 5 },
-      columnStyles: { 3: { halign: "right" } },
-    });
-  }
-
-  const finalY = doc.lastAutoTable?.finalY || 120;
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(22, 163, 74);
-  doc.text(
-    `Total: ${parseFloat(version.total_amount).toFixed(2)}€`,
-    14,
-    finalY + 16,
-  );
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(150);
-  doc.text(
-    `Depósito (50%): ${(parseFloat(version.total_amount) / 2).toFixed(2)}€`,
-    14,
-    finalY + 26,
-  );
-
-  return doc;
-};
-
-// ---------------------------------------------------------------------------
-// Line item builder — used in both create and new-version modal
+// LineItemBuilder Sub-Component
 // ---------------------------------------------------------------------------
 
 function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
-  // Filter catalog by event type if one is selected
   const relevant = eventType
     ? catalogItems.filter(
         (ci) =>
@@ -160,19 +89,15 @@ function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
     : catalogItems;
 
   const addItem = (catalogItem) => {
-    // Don't add duplicates
     if (lineItems.find((li) => li.catalog_item_id === catalogItem.id)) return;
     setLineItems([
       ...lineItems,
       {
         catalog_item_id: catalogItem.id,
-        catalog_item: catalogItem, // kept locally for display
+        catalog_item: catalogItem,
         quantity: 1,
         show_on_client_pdf: true,
         client_display_name: "",
-        // computed preview
-        _resolved_band: null,
-        _line_total: null,
       },
     ]);
   };
@@ -183,50 +108,14 @@ function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
 
   const updateItem = (id, field, value) => {
     setLineItems(
-      lineItems.map((li) => {
-        if (li.catalog_item_id !== id) return li;
-        const updated = { ...li, [field]: value };
-        // Re-resolve band whenever quantity changes
-        if (field === "quantity") {
-          const band = resolveBand(li.catalog_item, parseFloat(value));
-          updated._resolved_band = band;
-          updated._line_total = band
-            ? parseFloat(band.price_per_unit) * parseFloat(value) +
-              parseFloat(band.flat_fee || 0)
-            : null;
-        }
-        return updated;
-      }),
+      lineItems.map((li) =>
+        li.catalog_item_id === id ? { ...li, [field]: value } : li,
+      ),
     );
   };
-
-  const resolveBand = (catalogItem, qty) => {
-    if (!catalogItem?.price_bands) return null;
-    return (
-      catalogItem.price_bands.find((b) => {
-        const aboveMin = qty >= b.min_units;
-        const belowMax = b.max_units == null || qty <= b.max_units;
-        return aboveMin && belowMax;
-      }) || null
-    );
-  };
-
-  const runningTotal = lineItems.reduce((sum, li) => {
-    if (li._line_total != null) return sum + li._line_total;
-    // First pass: resolve on initial add
-    const band = resolveBand(li.catalog_item, parseFloat(li.quantity) || 0);
-    return (
-      sum +
-      (band
-        ? parseFloat(band.price_per_unit) * parseFloat(li.quantity) +
-          parseFloat(band.flat_fee || 0)
-        : 0)
-    );
-  }, 0);
 
   return (
     <div className="space-y-4">
-      {/* Service picker */}
       <div>
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
           Añadir servicio
@@ -251,16 +140,9 @@ function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
               </button>
             );
           })}
-          {relevant.length === 0 && (
-            <p className="text-xs text-gray-400 italic">
-              No hay servicios para esta categoría. Añade servicios en el
-              catálogo.
-            </p>
-          )}
         </div>
       </div>
 
-      {/* Line items table */}
       {lineItems.length > 0 && (
         <div className="border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
@@ -278,115 +160,72 @@ function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
                 <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">
                   Visible
                 </th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">
-                  Total
-                </th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {lineItems.map((li) => {
-                const band =
-                  li._resolved_band ||
-                  resolveBand(li.catalog_item, parseFloat(li.quantity) || 0);
-                const lineTotal = band
-                  ? parseFloat(band.price_per_unit) * parseFloat(li.quantity) +
-                    parseFloat(band.flat_fee || 0)
-                  : null;
-                const noBand = !band && li.quantity > 0;
-
-                return (
-                  <tr key={li.catalog_item_id} className="bg-white">
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-gray-800 text-xs">
-                        {li.catalog_item.internal_name}
-                      </div>
-                      {band && (
-                        <div className="text-xs text-gray-400">
-                          {band.price_per_unit}€/{band.unit_label}
-                          {parseFloat(band.flat_fee) > 0 &&
-                            ` + ${band.flat_fee}€ fijo`}
-                        </div>
-                      )}
-                      {noBand && (
-                        <div className="text-xs text-red-500">
-                          Sin banda de precio para esta cantidad
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min="1"
-                        value={li.quantity}
-                        onChange={(e) =>
-                          updateItem(
-                            li.catalog_item_id,
-                            "quantity",
-                            e.target.value,
-                          )
-                        }
-                        className="w-20 p-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-blue-400 outline-none"
-                      />
-                      {band && (
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {band.unit_label}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        placeholder={li.catalog_item.client_facing_name}
-                        value={li.client_display_name}
-                        onChange={(e) =>
-                          updateItem(
-                            li.catalog_item_id,
-                            "client_display_name",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full p-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-blue-400 outline-none text-gray-700 placeholder-gray-300"
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={li.show_on_client_pdf}
-                        onChange={(e) =>
-                          updateItem(
-                            li.catalog_item_id,
-                            "show_on_client_pdf",
-                            e.target.checked,
-                          )
-                        }
-                        className="rounded"
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-800 text-xs">
-                      {lineTotal != null ? `${lineTotal.toFixed(2)}€` : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => removeItem(li.catalog_item_id)}
-                        className="p-1 text-gray-300 hover:text-red-500 transition"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {lineItems.map((li) => (
+                <tr key={li.catalog_item_id} className="bg-white">
+                  <td className="px-3 py-2 text-xs font-medium text-gray-800">
+                    {li.catalog_item.internal_name}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={li.quantity}
+                      onChange={(e) =>
+                        updateItem(
+                          li.catalog_item_id,
+                          "quantity",
+                          e.target.value,
+                        )
+                      }
+                      className="w-20 p-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-blue-400 outline-none"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="text"
+                      placeholder={li.catalog_item.client_facing_name}
+                      value={li.client_display_name}
+                      onChange={(e) =>
+                        updateItem(
+                          li.catalog_item_id,
+                          "client_display_name",
+                          e.target.value,
+                        )
+                      }
+                      className="w-full p-1 border border-gray-200 rounded text-xs text-gray-700 placeholder-gray-300"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={li.show_on_client_pdf}
+                      onChange={(e) =>
+                        updateItem(
+                          li.catalog_item_id,
+                          "show_on_client_pdf",
+                          e.target.checked,
+                        )
+                      }
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => removeItem(li.catalog_item_id)}
+                      className="p-1 text-gray-300 hover:text-red-500"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-
-          {/* Running total */}
-          <div className="bg-gray-50 border-t border-gray-200 px-3 py-2 flex justify-end">
-            <span className="text-sm font-bold text-gray-900">
-              Total: {runningTotal.toFixed(2)}€
-            </span>
-          </div>
         </div>
       )}
     </div>
@@ -394,65 +233,22 @@ function LineItemBuilder({ catalogItems, lineItems, setLineItems, eventType }) {
 }
 
 // ---------------------------------------------------------------------------
-// Version history list shown in the drawer
+// Main PresupuestosPage Component
 // ---------------------------------------------------------------------------
 
-function VersionHistory({ versions, onPreview }) {
-  return (
-    <div className="space-y-2">
-      {versions.map((v) => (
-        <div
-          key={v.id}
-          className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 border border-gray-100"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-gray-500 w-6">
-              v{v.version_number}
-            </span>
-            <span
-              className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusStyle(v.status)}`}
-            >
-              {v.status}
-            </span>
-            <span className="text-xs text-gray-400">
-              {new Date(v.created_at).toLocaleDateString("es-ES")}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-gray-700">
-              {parseFloat(v.total_amount).toFixed(2)}€
-            </span>
-            <button
-              onClick={() => onPreview(v)}
-              className="text-xs text-blue-600 hover:underline"
-            >
-              Ver PDF
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
-
-export default function PresupuestosPage() {
+export default function PresupuestosPage({ refreshTrigger }) {
   const [presupuestos, setPresupuestos] = useState([]);
   const [clients, setClients] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Drawer
+  // Drawer Control State
   const [drawerItem, setDrawerItem] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [previewVersion, setPreviewVersion] = useState(null); // which version's PDF is showing
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
-  const [drawerTab, setDrawerTab] = useState("details"); // "details" | "history"
+  const [previewVersion, setPreviewVersion] = useState(null);
+  const [drawerTab, setDrawerTab] = useState("details");
 
-  // Create modal
+  // Create Project Shell Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
     client: "",
@@ -465,16 +261,18 @@ export default function PresupuestosPage() {
   const [createLineItems, setCreateLineItems] = useState([]);
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
-  // New version modal
+  // Revision Form Modal State
   const [showNewVersionModal, setShowNewVersionModal] = useState(false);
   const [newVersionNotes, setNewVersionNotes] = useState("");
   const [newVersionLineItems, setNewVersionLineItems] = useState([]);
   const [newVersionSubmitting, setNewVersionSubmitting] = useState(false);
 
-  // ---------------------------------------------------------------------------
-  // Data fetching
-  // ---------------------------------------------------------------------------
+  // Custom Simulated Workflow Alert Overlays
+  const [simulatedEmailPopup, setSimulatedEmailPopup] = useState(null);
+  const [showRejectionOptionsModal, setShowRejectionOptionsModal] =
+    useState(false);
 
+  // FIXED: We removed drawerItem from dependencies to stop the re-render trigger loop
   const fetchData = useCallback(async () => {
     try {
       const [presRes, clientRes, catalogRes] = await Promise.all([
@@ -486,34 +284,41 @@ export default function PresupuestosPage() {
       setClients(clientRes.data);
       setCatalogItems(catalogRes.data);
       setLoading(false);
+
+      // Functional updater pattern ensures we use the freshest state without creating loops
+      setDrawerItem((currentDrawerItem) => {
+        if (!currentDrawerItem) return null;
+        const structuralRefresh = presRes.data.find(
+          (p) => p.id === currentDrawerItem.id,
+        );
+        return structuralRefresh || currentDrawerItem;
+      });
     } catch (error) {
-      console.error(error);
+      console.error("Error loading CRM dataset context pools:", error);
       setLoading(false);
     }
   }, []);
 
+  // FIXED: Only trigger on mounting adjustments or explicit context refreshes
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [refreshTrigger, fetchData]);
 
-  // ---------------------------------------------------------------------------
-  // Drawer
-  // ---------------------------------------------------------------------------
+  const getActiveVersion = (pres) => {
+    if (!pres?.versions?.length) return null;
+    return (
+      pres.versions.find((v) => v.status === "Accepted") ||
+      pres.versions.find((v) => v.status === "Sent") ||
+      pres.versions[0]
+    );
+  };
 
   useEffect(() => {
     if (drawerItem) {
       requestAnimationFrame(() => setDrawerVisible(true));
-      setDrawerTab("details");
-      // Show active version PDF by default
-      const active = getActiveVersion(drawerItem);
-      if (active) {
-        setPreviewVersion(active);
-        const doc = buildPDF(drawerItem, active);
-        setPdfPreviewUrl(doc.output("bloburl"));
-      }
+      setPreviewVersion(getActiveVersion(drawerItem));
     } else {
       setDrawerVisible(false);
-      setPdfPreviewUrl(null);
       setPreviewVersion(null);
     }
   }, [drawerItem]);
@@ -523,42 +328,10 @@ export default function PresupuestosPage() {
     setTimeout(() => setDrawerItem(null), 300);
   };
 
-  const handlePreviewVersion = (version) => {
-    setPreviewVersion(version);
-    const doc = buildPDF(drawerItem, version);
-    setPdfPreviewUrl(doc.output("bloburl"));
-    setDrawerTab("details");
-  };
-
-  const getActiveVersion = (pres) => {
-    if (!pres?.versions?.length) return null;
-    return (
-      pres.versions.find((v) => v.status === "Accepted") || pres.versions[0]
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Create presupuesto
-  // ---------------------------------------------------------------------------
-
-  const resetCreateModal = () => {
-    setCreateForm({
-      client: "",
-      title: "",
-      event_type: "",
-      event_start: "",
-      event_end: "",
-      notes: "",
-    });
-    setCreateLineItems([]);
-  };
-
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (createLineItems.length === 0) {
-      alert("Añade al menos un servicio.");
-      return;
-    }
+    if (createLineItems.length === 0)
+      return alert("Por favor, añade al menos un servicio al presupuesto.");
     setCreateSubmitting(true);
     try {
       const payload = {
@@ -570,61 +343,49 @@ export default function PresupuestosPage() {
           client_display_name: li.client_display_name,
         })),
       };
-      const response = await api.post("presupuestos/", payload);
-      setPresupuestos([response.data, ...presupuestos]);
+      await api.post("presupuestos/", payload);
+      fetchData();
       setShowCreateModal(false);
-      resetCreateModal();
+      setCreateLineItems([]);
+      setCreateForm({
+        client: "",
+        title: "",
+        event_type: "",
+        event_start: "",
+        event_end: "",
+        notes: "",
+      });
     } catch (error) {
-      console.error(error);
-      alert(
-        "Error creando el presupuesto. Comprueba que todas las cantidades tienen una banda de precio.",
-      );
+      alert("Error al guardar el presupuesto. Verifica los tramos de precio.");
     } finally {
       setCreateSubmitting(false);
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // New version
-  // ---------------------------------------------------------------------------
-
-  const openNewVersionModal = () => {
-    // Pre-fill with current active version's line items
+  const setupLineItemsForRevision = () => {
     const active = getActiveVersion(drawerItem);
     if (active?.line_items) {
-      setNewVersionLineItems(
-        active.line_items.map((li) => {
-          const catalogItem = catalogItems.find(
-            (ci) => ci.id === li.catalog_item,
-          );
-          return {
-            catalog_item_id: li.catalog_item,
-            catalog_item: catalogItem || {
-              id: li.catalog_item,
-              internal_name: li.display_name,
-              price_bands: [],
-            },
-            quantity: li.quantity,
-            show_on_client_pdf: li.show_on_client_pdf,
-            client_display_name: li.client_display_name || "",
-            _resolved_band: null,
-            _line_total: null,
-          };
-        }),
-      );
-    } else {
-      setNewVersionLineItems([]);
+      return active.line_items.map((li) => ({
+        catalog_item_id: li.catalog_item,
+        catalog_item: catalogItems.find((ci) => ci.id === li.catalog_item) || {
+          internal_name: li.display_name,
+        },
+        quantity: li.quantity,
+        show_on_client_pdf: li.show_on_client_pdf,
+        client_display_name: li.client_display_name || "",
+      }));
     }
+    return [];
+  };
+
+  const openNewVersionModal = () => {
+    setNewVersionLineItems(setupLineItemsForRevision());
     setNewVersionNotes("");
     setShowNewVersionModal(true);
   };
 
   const handleNewVersion = async (e) => {
     e.preventDefault();
-    if (newVersionLineItems.length === 0) {
-      alert("Añade al menos un servicio.");
-      return;
-    }
     setNewVersionSubmitting(true);
     try {
       const payload = {
@@ -636,11 +397,7 @@ export default function PresupuestosPage() {
           client_display_name: li.client_display_name,
         })),
       };
-      const response = await api.post(
-        `presupuestos/${drawerItem.id}/new_version/`,
-        payload,
-      );
-      // Refresh this presupuesto in the list and in the drawer
+      await api.post(`presupuestos/${drawerItem.id}/new_version/`, payload);
       const updated = await api.get(`presupuestos/${drawerItem.id}/`);
       setPresupuestos(
         presupuestos.map((p) => (p.id === drawerItem.id ? updated.data : p)),
@@ -648,16 +405,29 @@ export default function PresupuestosPage() {
       setDrawerItem(updated.data);
       setShowNewVersionModal(false);
     } catch (error) {
-      console.error(error);
-      alert("Error creando nueva versión.");
+      alert("Error al compilar y guardar el nuevo documento revisado.");
     } finally {
       setNewVersionSubmitting(false);
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Accept & send deposit
-  // ---------------------------------------------------------------------------
+  const handleSendToClient = async () => {
+    try {
+      const response = await api.post(`presupuestos/${drawerItem.id}/send/`);
+      setPresupuestos(
+        presupuestos.map((p) => (p.id === drawerItem.id ? response.data : p)),
+      );
+      setDrawerItem(response.data);
+
+      setSimulatedEmailPopup({
+        email: drawerItem.client_email,
+        title: drawerItem.title,
+        version: getActiveVersion(response.data)?.version_number || 1,
+      });
+    } catch (error) {
+      alert("Error al procesar la salida de despacho documental.");
+    }
+  };
 
   const handleAccept = async () => {
     try {
@@ -667,47 +437,88 @@ export default function PresupuestosPage() {
       );
       setDrawerItem(response.data);
     } catch (error) {
-      alert("Error al aceptar el presupuesto.");
+      alert(
+        "Error formalizando aceptación. Verifica flujos flujos contables asociados.",
+      );
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Download PDF
-  // ---------------------------------------------------------------------------
+  const handleFinalInvoice = async () => {
+    try {
+      // Calls the @action final_invoice you built in views.py
+      await api.post(`presupuestos/${drawerItem.id}/final_invoice/`);
 
-  const handleDownloadPDF = () => {
-    if (!drawerItem || !previewVersion) return;
-    const doc = buildPDF(drawerItem, previewVersion);
-    doc.save(
-      `Presupuesto_${drawerItem.id}_v${previewVersion.version_number}.pdf`,
-    );
+      // Refresh the specific item to update the UI (since a new invoice is linked)
+      const response = await api.get(`presupuestos/${drawerItem.id}/`);
+      setPresupuestos(
+        presupuestos.map((p) => (p.id === drawerItem.id ? response.data : p)),
+      );
+      setDrawerItem(response.data);
+
+      alert(
+        "Factura final generada con éxito. Puedes verla en la pestaña de Invoices.",
+      );
+    } catch (error) {
+      alert(
+        error.response?.data?.detail ||
+          "Error al generar la factura final. Verifica que no exista ya una.",
+      );
+    }
   };
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+  const handleRejectLostJob = async () => {
+    try {
+      const response = await api.post(`presupuestos/${drawerItem.id}/reject/`);
+      setPresupuestos(
+        presupuestos.map((p) => (p.id === drawerItem.id ? response.data : p)),
+      );
+      setDrawerItem(response.data);
+      setShowRejectionOptionsModal(false);
+    } catch (error) {
+      alert("Error al registrar cancelación irrevocable.");
+    }
+  };
+
+  const handleRejectAndRenegotiate = () => {
+    setShowRejectionOptionsModal(false);
+    setNewVersionLineItems(setupLineItemsForRevision());
+    setNewVersionNotes(
+      "Re-negociación iniciada tras rechazo de propuesta anterior.",
+    );
+    setShowNewVersionModal(true);
+  };
 
   const activeVersion = drawerItem ? getActiveVersion(drawerItem) : null;
 
+  // Real-time calculation layer with direct fallback math to protect UI display values
+  const rawTotal = activeVersion ? parseFloat(activeVersion.total_amount) : 0;
+
+  const totalPaid =
+    drawerItem && drawerItem.total_deposits_paid !== undefined
+      ? parseFloat(drawerItem.total_deposits_paid)
+      : 0;
+
+  const balanceDue =
+    drawerItem && drawerItem.balance_due !== undefined
+      ? parseFloat(drawerItem.balance_due)
+      : Math.max(0, rawTotal - totalPaid);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 h-screen">
-      {/* Header */}
       <header className="h-16 bg-white border-b flex items-center justify-between px-8 shrink-0">
         <h2 className="text-xl font-semibold text-gray-800">Presupuestos</h2>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all"
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <Plus size={18} />
-          <span>Nuevo Presupuesto</span>
+          <Plus size={18} /> <span>Nuevo Presupuesto</span>
         </button>
       </header>
 
-      {/* Table */}
       <main className="flex-1 overflow-auto p-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {loading ? (
-            <div className="p-20 text-center text-gray-400">
+            <div className="p-20 text-center text-gray-400 animate-pulse">
               Cargando base de datos...
             </div>
           ) : (
@@ -738,15 +549,14 @@ export default function PresupuestosPage() {
                 {presupuestos.map((pres) => (
                   <tr
                     key={pres.id}
-                    className="hover:bg-blue-50/30 transition-colors"
+                    className="hover:bg-blue-50/30 transition-colors group"
                   >
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-semibold text-gray-900">
                         {pres.title}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
-                        #{pres.id} · {pres.versions?.length || 0} versión
-                        {pres.versions?.length !== 1 ? "es" : ""}
+                        #{pres.id} · {pres.versions?.length || 0} versiones
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -759,14 +569,14 @@ export default function PresupuestosPage() {
                         {pres.event_type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-6 py-4 font-semibold text-gray-900">
                       {pres.active_amount
                         ? `${parseFloat(pres.active_amount).toFixed(2)}€`
                         : "—"}
                     </td>
                     <td className="px-6 py-4">
                       <span
-                        className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusStyle(pres.active_status)}`}
+                        className={`px-3 py-1 text-xs font-bold rounded-full border ${getDisplayStatusStyle(pres.active_status)}`}
                       >
                         {pres.active_status || "—"}
                       </span>
@@ -774,30 +584,20 @@ export default function PresupuestosPage() {
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => setDrawerItem(pres)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"
                       >
                         <Eye size={18} />
                       </button>
                     </td>
                   </tr>
                 ))}
-                {presupuestos.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-6 py-20 text-center text-gray-400"
-                    >
-                      No hay presupuestos todavía. Crea el primero.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           )}
         </div>
       </main>
 
-      {/* ── DRAWER ────────────────────────────────────────────────────────── */}
+      {/* RIGHT SIDE MANAGEMENT DRAWER */}
       {drawerItem && (
         <>
           <div
@@ -811,10 +611,9 @@ export default function PresupuestosPage() {
               transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
             }}
           >
-            {/* Drawer header */}
             <div className="h-16 border-b bg-gray-50 px-6 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base font-semibold text-gray-800">
+                <h3 className="text-base font-bold text-gray-800">
                   {drawerItem.title}
                 </h3>
                 <p className="text-xs text-gray-400">
@@ -823,199 +622,125 @@ export default function PresupuestosPage() {
               </div>
               <button
                 onClick={closeDrawer}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-full"
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Tabs */}
             <div className="flex border-b bg-white shrink-0">
               <button
                 onClick={() => setDrawerTab("details")}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  drawerTab === "details"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-6 py-3 text-sm font-semibold border-b-2 ${drawerTab === "details" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}
               >
                 Detalles
               </button>
               <button
                 onClick={() => setDrawerTab("history")}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                  drawerTab === "history"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-6 py-3 text-sm font-semibold border-b-2 flex items-center gap-1.5 ${drawerTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}
               >
-                <History size={14} />
-                Versiones
-                <span className="ml-1 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">
-                  {drawerItem.versions?.length || 0}
-                </span>
+                <History size={14} /> Versiones
               </button>
             </div>
 
-            {/* Drawer body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {drawerTab === "details" && (
                 <>
-                  {/* Status + amount hero */}
-                  <div className="flex items-center justify-between bg-slate-50 rounded-xl p-5 border border-slate-200">
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">
-                        Estado actual
+                  <div className="grid grid-cols-3 bg-slate-950 text-white rounded-2xl p-5 shadow-inner border border-slate-800">
+                    <div className="border-r border-slate-800/60 px-2">
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                        <Euro size={10} /> Presupuesto Total
                       </p>
+                      <p className="text-xl font-bold text-slate-100">
+                        {rawTotal.toFixed(2)}€
+                      </p>
+                    </div>
+                    <div className="border-r border-slate-800/60 px-4">
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 mb-1 flex items-center gap-1">
+                        <CheckCircle size={10} /> Total Abonado
+                      </p>
+                      <p className="text-xl font-bold text-emerald-400">
+                        -{totalPaid.toFixed(2)}€
+                      </p>
+                    </div>
+                    <div className="px-4 bg-amber-500/10 rounded-xl py-1 border border-amber-500/20">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-amber-400 mb-0.5 flex items-center gap-1">
+                        <Scale size={10} /> Pendiente de Cobro
+                      </p>
+                      <p className="text-2xl font-black text-amber-400">
+                        {balanceDue.toFixed(2)}€
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-50 rounded-xl p-4 border">
+                      <div className="text-xs font-medium text-gray-400 mb-1">
+                        Estado Operativo
+                      </div>
                       <span
-                        className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusStyle(drawerItem.active_status)}`}
+                        className={`inline-block px-3 py-0.5 text-xs font-bold rounded-full border ${getDisplayStatusStyle(drawerItem.active_status)}`}
                       >
                         {drawerItem.active_status || "—"}
                       </span>
-                      {previewVersion &&
-                        previewVersion.version_number !==
-                          getActiveVersion(drawerItem)?.version_number && (
-                          <p className="text-xs text-blue-500 mt-1">
-                            Viendo v{previewVersion.version_number}
-                          </p>
-                        )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 mb-1">Total</p>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {activeVersion
-                          ? `${parseFloat(activeVersion.total_amount).toFixed(2)}€`
-                          : "—"}
-                      </p>
-                      {activeVersion && (
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Depósito:{" "}
-                          {(parseFloat(activeVersion.total_amount) / 2).toFixed(
-                            2,
-                          )}
-                          €
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Client + event info */}
-                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                    <div className="flex items-center gap-2 text-blue-800 font-medium text-sm mb-3">
-                      <User size={15} /> Cliente
-                    </div>
-                    <div className="text-sm text-gray-700 space-y-1">
-                      <p>{drawerItem.client_name}</p>
-                      {drawerItem.client_email && (
-                        <p className="text-gray-400">
-                          {drawerItem.client_email}
-                        </p>
-                      )}
-                      {drawerItem.client_company && (
-                        <p className="text-gray-400">
-                          {drawerItem.client_company}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-                        <Tag size={12} /> Categoría
+                    <div className="bg-gray-50 rounded-xl p-4 border">
+                      <div className="text-xs font-medium text-gray-400 mb-1">
+                        Categoría Proyecto
                       </div>
                       <span
-                        className={`inline-block px-2.5 py-1 text-xs font-medium rounded-md border ${getBadgeStyle(drawerItem.event_type)}`}
+                        className={`inline-block px-2.5 py-0.5 text-xs font-semibold rounded-md border ${getBadgeStyle(drawerItem.event_type)}`}
                       >
                         {drawerItem.event_type}
                       </span>
                     </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-                        <Euro size={12} /> Versión activa
+                    <div className="bg-gray-50 rounded-xl p-4 border">
+                      <div className="text-xs font-medium text-gray-400 mb-1">
+                        Versión Activa
                       </div>
-                      <p className="text-sm font-medium text-gray-700">
-                        v{activeVersion?.version_number || "—"}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="text-xs text-gray-400 mb-1">Inicio</div>
-                      <p className="text-sm text-gray-700">
-                        {new Date(drawerItem.event_start).toLocaleString(
-                          "es-ES",
-                        )}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="text-xs text-gray-400 mb-1">Fin</div>
-                      <p className="text-sm text-gray-700">
-                        {new Date(drawerItem.event_end).toLocaleString("es-ES")}
+                      <p className="text-sm font-bold text-gray-700">
+                        v{previewVersion?.version_number}
                       </p>
                     </div>
                   </div>
 
-                  {/* Line items of current preview version */}
-                  {previewVersion?.line_items?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                        Servicios · v{previewVersion.version_number}
-                      </p>
-                      <div className="border border-gray-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400">
-                                Servicio
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400">
-                                Cant.
-                              </th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-400">
-                                Total
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {previewVersion.line_items.map((li) => (
-                              <tr
-                                key={li.id}
-                                className={
-                                  li.show_on_client_pdf ? "" : "opacity-40"
-                                }
-                              >
-                                <td className="px-4 py-2 text-gray-700 text-xs">
-                                  {li.display_name ||
-                                    li.client_display_name ||
-                                    "Servicio"}
-                                  {!li.show_on_client_pdf && (
-                                    <span className="ml-1 text-gray-400 text-xs">
-                                      (interno)
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-2 text-gray-500 text-xs">
-                                  {li.quantity} {li.unit_label}
-                                </td>
-                                <td className="px-4 py-2 text-right font-medium text-gray-800 text-xs">
-                                  {parseFloat(li.line_total).toFixed(2)}€
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                  <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Receipt size={13} className="text-gray-400" /> Estado
+                      Analítico de Cuenta del Evento
+                    </h4>
+                    <div className="divide-y divide-gray-100 text-sm">
+                      <div className="py-2.5 flex justify-between text-gray-600">
+                        <span>Importe Bruto del Servicio Contractual</span>
+                        <span className="font-semibold text-gray-800">
+                          {rawTotal.toFixed(2)}€
+                        </span>
+                      </div>
+                      <div className="py-2.5 flex justify-between text-emerald-700">
+                        <span>Crédito Liquidado por Depósito Inicial</span>
+                        <span className="font-semibold">
+                          -{totalPaid.toFixed(2)}€
+                        </span>
+                      </div>
+                      <div className="py-3 flex justify-between text-base font-bold bg-slate-50 px-3 rounded-xl mt-2 border border-slate-100">
+                        <span className="text-gray-700">
+                          Saldo Pendiente Neto en Factura Final
+                        </span>
+                        <span className="text-amber-600">
+                          {balanceDue.toFixed(2)}€
+                        </span>
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  {/* PDF preview */}
-                  {pdfPreviewUrl && (
+                  {previewVersion?.pdf_file && (
                     <div>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                        Vista previa · v{previewVersion?.version_number}
+                        Servidor Central Snapshot Preview (Documento Inmutable)
                       </p>
-                      <div className="w-full h-[640px] bg-gray-100 rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="w-full h-[550px] bg-gray-100 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                         <iframe
-                          src={pdfPreviewUrl}
+                          src={`${previewVersion.pdf_file}?t=${new Date().getTime()}`}
                           className="w-full h-full"
                           title="PDF Preview"
                         />
@@ -1026,79 +751,135 @@ export default function PresupuestosPage() {
               )}
 
               {drawerTab === "history" && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
-                    Historial de versiones
-                  </p>
-                  <VersionHistory
-                    versions={drawerItem.versions || []}
-                    onPreview={handlePreviewVersion}
-                  />
+                <div className="space-y-2">
+                  {drawerItem.versions?.map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-black text-gray-400">
+                          v{v.version_number}
+                        </span>
+                        <span
+                          className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getDisplayStatusStyle(v.status)}`}
+                        >
+                          {v.status}
+                        </span>
+                        {v.notes && (
+                          <span className="text-xs text-gray-400 italic truncate max-w-xs">
+                            ({v.notes})
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setPreviewVersion(v);
+                          setDrawerTab("details");
+                        }}
+                        className="text-xs font-bold text-blue-600 hover:underline"
+                      >
+                        Ver Snapshot
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Drawer footer */}
             <div className="border-t bg-gray-50 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
               <button
                 onClick={closeDrawer}
-                className="px-4 py-2 text-sm border rounded-lg text-gray-600 hover:bg-gray-100 transition"
+                className="px-4 py-2 text-sm font-medium border rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
               >
                 Cerrar
               </button>
-              <button
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition"
-              >
-                <Download size={15} /> Descargar PDF
-              </button>
-              {/* New version — only if current is accepted */}
-              {drawerItem.active_status === "Accepted" && (
-                <button
-                  onClick={openNewVersionModal}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+
+              {previewVersion?.pdf_file && (
+                <a
+                  href={previewVersion.pdf_file}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-100 border text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors"
                 >
-                  <PackagePlus size={15} /> Nueva versión
+                  <Download size={15} /> Descargar PDF
+                </a>
+              )}
+
+              {drawerItem.active_status === "Draft" && (
+                <button
+                  onClick={handleSendToClient}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <Send size={15} /> Enviar al Cliente
                 </button>
               )}
-              {/* Accept — only if draft or sent */}
-              {(drawerItem.active_status === "Draft" ||
-                drawerItem.active_status === "Sent") && (
-                <button
-                  onClick={handleAccept}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                >
-                  <CheckCircle size={15} /> Aceptar y enviar depósito
-                </button>
+
+              {drawerItem.active_status === "Sent" && (
+                <>
+                  <button
+                    onClick={() => setShowRejectionOptionsModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <XCircle size={15} /> Marcar Rechazado
+                  </button>
+                  <button
+                    onClick={handleAccept}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                  >
+                    <CheckCircle size={15} /> Marcar Aceptado
+                  </button>
+                </>
+              )}
+
+              {drawerItem.active_status === "Accepted" && (
+                <>
+                  <button
+                    onClick={openNewVersionModal}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors shadow-sm"
+                  >
+                    <PackagePlus size={15} /> Nueva versión
+                  </button>
+
+                  {/* DYNAMIC FINAL INVOICE TRIGGER */}
+                  {balanceDue > 0 && !drawerItem.has_final_invoice && (
+                    <button
+                      onClick={handleFinalInvoice}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      <Receipt size={15} /> Emitir Factura Final
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
         </>
       )}
 
-      {/* ── CREATE MODAL ──────────────────────────────────────────────────── */}
+      {/* MODAL: CREATE NEW BASE PRESUPUESTO */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50 shrink-0">
+          <form
+            onSubmit={handleCreate}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+          >
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-bold text-gray-800">
                 Nuevo Presupuesto
               </h3>
               <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  resetCreateModal();
-                }}
-                className="text-gray-400 hover:text-gray-600"
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="text-gray-400 hover:text-gray-600 rounded-full p-1 hover:bg-gray-100"
               >
                 <X size={20} />
               </button>
             </div>
-
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Client */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Cliente
                 </label>
                 <select
@@ -1107,21 +888,19 @@ export default function PresupuestosPage() {
                   onChange={(e) =>
                     setCreateForm({ ...createForm, client: e.target.value })
                   }
-                  className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full p-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Selecciona un cliente</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} {c.company ? `· ${c.company}` : ""}
+                      {c.name}
                     </option>
                   ))}
                 </select>
               </div>
-
-              {/* Title + type */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Título del proyecto
                   </label>
                   <input
@@ -1131,12 +910,11 @@ export default function PresupuestosPage() {
                     onChange={(e) =>
                       setCreateForm({ ...createForm, title: e.target.value })
                     }
-                    className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Boda en la finca, Rodaje exterior..."
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Tipo de evento
                   </label>
                   <select
@@ -1148,7 +926,7 @@ export default function PresupuestosPage() {
                         event_type: e.target.value,
                       })
                     }
-                    className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   >
                     <option value="">Selecciona tipo</option>
                     {EVENT_TYPES.map((t) => (
@@ -1159,11 +937,9 @@ export default function PresupuestosPage() {
                   </select>
                 </div>
               </div>
-
-              {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Inicio del evento
                   </label>
                   <input
@@ -1176,11 +952,11 @@ export default function PresupuestosPage() {
                         event_start: e.target.value,
                       })
                     }
-                    className="w-full p-2 border rounded-lg outline-none text-sm"
+                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Fin del evento
                   </label>
                   <input
@@ -1193,15 +969,13 @@ export default function PresupuestosPage() {
                         event_end: e.target.value,
                       })
                     }
-                    className="w-full p-2 border rounded-lg outline-none text-sm"
+                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
-
-              {/* Line item builder */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Servicios
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Servicios Incluidos
                 </label>
                 <LineItemBuilder
                   catalogItems={catalogItems}
@@ -1210,102 +984,141 @@ export default function PresupuestosPage() {
                   eventType={createForm.event_type}
                 />
               </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notas internas{" "}
-                  <span className="text-gray-400 font-normal">(opcional)</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={createForm.notes}
-                  onChange={(e) =>
-                    setCreateForm({ ...createForm, notes: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                  placeholder="Peticiones especiales, condiciones particulares..."
-                />
-              </div>
             </div>
-
-            <div className="p-6 border-t bg-gray-50 shrink-0">
+            <div className="p-6 border-t bg-gray-50">
               <button
-                onClick={handleCreate}
+                type="submit"
                 disabled={createSubmitting}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow"
               >
-                {createSubmitting ? "Creando..." : "Generar Presupuesto"}
+                {createSubmitting
+                  ? "Generando Documentación..."
+                  : "Generar Presupuesto"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
-      {/* ── NEW VERSION MODAL ─────────────────────────────────────────────── */}
+      {/* MODAL: REVISE CURRENT ITEMS (NEW VERSION) */}
       {showNewVersionModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50 shrink-0">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800">
-                  Nueva versión
-                </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {drawerItem?.title} · v
-                  {(getActiveVersion(drawerItem)?.version_number || 0) + 1}
-                </p>
-              </div>
+          <form
+            onSubmit={handleNewVersion}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+          >
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-800">Nueva versión</h3>
               <button
+                type="button"
                 onClick={() => setShowNewVersionModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 rounded-full p-1 hover:bg-gray-100"
               >
                 <X size={20} />
               </button>
             </div>
-
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-                La versión actual ({drawerItem?.active_status}) quedará
-                archivada. El cliente no recibe nuevo depósito — solo se
-                recalcula el saldo pendiente.
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 font-medium">
+                La versión anterior quedará archivada como un registro histórico
+                inmutable dentro del historial de auditoría.
               </div>
-
+              <LineItemBuilder
+                catalogItems={catalogItems}
+                lineItems={newVersionLineItems}
+                setLineItems={setNewVersionLineItems}
+                eventType={drawerItem?.event_type}
+              />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Servicios
-                </label>
-                <LineItemBuilder
-                  catalogItems={catalogItems}
-                  lineItems={newVersionLineItems}
-                  setLineItems={setNewVersionLineItems}
-                  eventType={drawerItem?.event_type}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Motivo del cambio
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Motivo del cambio (Interno)
                 </label>
                 <textarea
                   rows={2}
                   value={newVersionNotes}
                   onChange={(e) => setNewVersionNotes(e.target.value)}
-                  className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                  placeholder="El cliente añadió catering para 10 personas más..."
+                  className="w-full p-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Ej: Cambio solicitado por el cliente..."
                 />
               </div>
             </div>
-
-            <div className="p-6 border-t bg-gray-50 shrink-0">
+            <div className="p-6 border-t bg-gray-50">
               <button
-                onClick={handleNewVersion}
+                type="submit"
                 disabled={newVersionSubmitting}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow"
               >
                 {newVersionSubmitting
-                  ? "Creando versión..."
+                  ? "Compilando versión..."
                   : "Crear nueva versión"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* SIMULATED SYSTEM DISPATCH BANNER POPUP (EMAIL EMULATION) */}
+      {simulatedEmailPopup && (
+        <div className="fixed bottom-5 right-5 bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-slate-700 z-50 max-w-sm animate-slide-in">
+          <div className="flex justify-between items-start mb-2">
+            <h4 className="text-xs font-black tracking-widest text-blue-400 uppercase">
+              Simulación de Despacho Técnico
+            </h4>
+            <button
+              onClick={() => setSimulatedEmailPopup(null)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Se ha simulado el envío de la propuesta comercial{" "}
+            <strong>
+              "{simulatedEmailPopup.title}" (v{simulatedEmailPopup.version})
+            </strong>{" "}
+            con su respectivo PDF adjunto al buzón electrónico del cliente:
+          </p>
+          <div className="mt-3 bg-slate-800 text-blue-300 p-2 text-center font-mono rounded-lg text-xs font-bold select-all truncate">
+            {simulatedEmailPopup.email}
+          </div>
+        </div>
+      )}
+
+      {/* STYLED REJECTION DIALOG ACTION ROUTER MODAL */}
+      {showRejectionOptionsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border text-center animate-scale-up">
+            <div className="mx-auto w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-4">
+              <XCircle size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              Propuesta Comercial Rechazada
+            </h3>
+            <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+              ¿Cómo deseas procesar la respuesta negativa del cliente? Puedes
+              cerrar el expediente declarando el encargo perdido o abrir una
+              mesa de negociación modificando los términos comerciales actuales.
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleRejectAndRenegotiate}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-bold text-sm py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <FilePenLine size={16} /> Ajustar Detalles y Re-negociar
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectLostJob}
+                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-bold text-sm py-3 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                <Trash2 size={16} /> Cerrar Expediente (Misión Perdida)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRejectionOptionsModal(false)}
+                className="w-full text-xs font-semibold text-gray-400 hover:text-gray-600 pt-2 transition-colors"
+              >
+                Cancelar Acción
               </button>
             </div>
           </div>
