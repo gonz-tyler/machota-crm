@@ -39,13 +39,14 @@ class Client(models.Model):
 # ---------------------------------------------------------------------------
 
 class Event(models.Model):
-    title      = models.CharField(max_length=255)
-    client     = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='events')
-    event_type = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
-    start_time = models.DateTimeField()
-    end_time   = models.DateTimeField()
-    notes      = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    title             = models.CharField(max_length=255)
+    client            = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='events')
+    event_type        = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
+    start_time        = models.DateTimeField(null=True, blank=True)
+    end_time          = models.DateTimeField(null=True, blank=True)
+    is_date_tentative = models.BooleanField(default=False)
+    notes             = models.TextField(blank=True, null=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.title} ({self.client.name})"
@@ -87,13 +88,14 @@ class ServicePriceBand(models.Model):
 # ---------------------------------------------------------------------------
 
 class Presupuesto(models.Model):
-    client      = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='presupuestos')
-    event       = models.OneToOneField(Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuesto')
-    title       = models.CharField(max_length=255)
-    event_type  = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
-    event_start = models.DateTimeField()
-    event_end   = models.DateTimeField()
-    created_at  = models.DateTimeField(auto_now_add=True)
+    client            = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='presupuestos')
+    event             = models.OneToOneField(Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuesto')
+    title             = models.CharField(max_length=255)
+    event_type        = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
+    event_start       = models.DateTimeField(null=True, blank=True)
+    event_end         = models.DateTimeField(null=True, blank=True)
+    is_date_tentative = models.BooleanField(default=False)
+    created_at        = models.DateTimeField(auto_now_add=True)
 
     @property
     def active_version(self):
@@ -132,6 +134,7 @@ class Presupuesto(models.Model):
                 event_type=self.event_type,
                 start_time=self.event_start,
                 end_time=self.event_end,
+                is_date_tentative=self.is_date_tentative,
                 notes=f"Auto-generated calendar hold for Presupuesto #{self.id}",
             )
             Presupuesto.objects.filter(pk=self.pk).update(event=ev)
@@ -151,19 +154,19 @@ class PresupuestoVersion(models.Model):
         ('Archived', 'Archived'),
     )
 
-    presupuesto    = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='versions')
-    version_number = models.PositiveIntegerField()
-    status         = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Draft')
-    total_amount   = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    pdf_file       = models.FileField(upload_to='presupuestos/', null=True, blank=True)
-    notes          = models.TextField(blank=True)
-    created_at     = models.DateTimeField(auto_now_add=True)
-    archived_at    = models.DateTimeField(null=True, blank=True)
-    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    presupuesto      = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='versions')
+    version_number   = models.PositiveIntegerField()
+    status           = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Draft')
+    total_amount     = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    pdf_file         = models.FileField(upload_to='presupuestos/', null=True, blank=True)
+    notes            = models.TextField(blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    archived_at      = models.DateTimeField(null=True, blank=True)
+    token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     token_expires_at = models.DateTimeField(null=True, blank=True)  # optional
     
     # State
-    viewed_at = models.DateTimeField(null=True, blank=True)   # audit
+    viewed_at   = models.DateTimeField(null=True, blank=True)   # audit
     accepted_at = models.DateTimeField(null=True, blank=True) # idempotency key
 
     class Meta:

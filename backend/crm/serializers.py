@@ -53,9 +53,9 @@ class ServiceCatalogItemSerializer(serializers.ModelSerializer):
 
 class LineItemSerializer(serializers.ModelSerializer):
     # These are resolved server-side from the chosen price band — read only
-    unit_price  = serializers.DecimalField(max_digits=8,  decimal_places=2, read_only=True)
-    line_total  = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    unit_label  = serializers.CharField(read_only=True)
+    unit_price   = serializers.DecimalField(max_digits=8,  decimal_places=2, read_only=True)
+    line_total   = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    unit_label   = serializers.CharField(read_only=True)
     display_name = serializers.CharField(read_only=True)  # property on the model
 
     class Meta:
@@ -87,9 +87,7 @@ class PresupuestoVersionSerializer(serializers.ModelSerializer):
 
 
 # ---------------------------------------------------------------------------
-# Presupuesto — two serializers:
-#   PresupuestoSerializer      read  → full nested response for the frontend
-#   PresupuestoWriteSerializer write → flat input for creating a new presupuesto
+# Presupuesto
 # ---------------------------------------------------------------------------
 
 class PresupuestoSerializer(serializers.ModelSerializer):
@@ -126,19 +124,22 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 
 class PresupuestoWriteSerializer(serializers.ModelSerializer):
     """Flat write serializer — line items are handled separately by the view."""
+    event_start = serializers.DateTimeField(required=False, allow_null=True)
+    event_end   = serializers.DateTimeField(required=False, allow_null=True)
+
     class Meta:
         model  = Presupuesto
-        fields = ('client', 'title', 'event_type', 'event_start', 'event_end')
+        fields = ('client', 'title', 'event_type', 'event_start', 'event_end', 'is_date_tentative')
 
 
 class PortalPresupuestoVersionSerializer(serializers.ModelSerializer):
-    client_name  = serializers.CharField(source='presupuesto.client.name')
-    title        = serializers.CharField(source='presupuesto.title')
-    event_start  = serializers.DateTimeField(source='presupuesto.event_start')
-    event_end    = serializers.DateTimeField(source='presupuesto.event_end')
-    event_type   = serializers.CharField(source='presupuesto.event_type')
+    client_name       = serializers.CharField(source='presupuesto.client.name')
+    title             = serializers.CharField(source='presupuesto.title')
+    event_start       = serializers.DateTimeField(source='presupuesto.event_start', allow_null=True)
+    event_end         = serializers.DateTimeField(source='presupuesto.event_end', allow_null=True)
+    event_type        = serializers.CharField(source='presupuesto.event_type')
+    is_date_tentative = serializers.BooleanField(source='presupuesto.is_date_tentative')
 
-    # serializer — stop exposing the real file path entirely
     def get_pdf_file(self, obj):
         if not obj.pdf_file:
             return None
@@ -149,8 +150,10 @@ class PortalPresupuestoVersionSerializer(serializers.ModelSerializer):
         fields = [
             'version_number', 'status', 'total_amount',
             'notes', 'pdf_file', 'created_at',
-            'client_name', 'title', 'event_start', 'event_end', 'event_type',
+            'client_name', 'title', 'event_start', 'event_end', 'event_type', 'is_date_tentative'
         ]
+
+
 # ---------------------------------------------------------------------------
 # Invoice
 # ---------------------------------------------------------------------------

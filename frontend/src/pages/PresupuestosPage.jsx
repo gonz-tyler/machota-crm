@@ -234,11 +234,12 @@ export default function PresupuestosPage({ refreshTrigger }) {
   // Create Project Shell Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
-    client: "", // holds the client ID
+    client: "",
     title: "",
     event_type: "",
     event_start: "",
     event_end: "",
+    is_date_tentative: false,
     notes: "",
   });
   const [createLineItems, setCreateLineItems] = useState([]);
@@ -355,6 +356,7 @@ export default function PresupuestosPage({ refreshTrigger }) {
       event_type: "",
       event_start: "",
       event_end: "",
+      is_date_tentative: false,
       notes: "",
     });
     setClientSearchTerm("");
@@ -371,6 +373,10 @@ export default function PresupuestosPage({ refreshTrigger }) {
     try {
       const payload = {
         ...createForm,
+        event_start: createForm.is_date_tentative
+          ? null
+          : createForm.event_start,
+        event_end: createForm.is_date_tentative ? null : createForm.event_end,
         line_items: createLineItems.map((li) => ({
           catalog_item_id: li.catalog_item_id,
           quantity: parseFloat(li.quantity),
@@ -614,7 +620,6 @@ export default function PresupuestosPage({ refreshTrigger }) {
         </div>
       </main>
 
-      {/* RIGHT SIDE MANAGEMENT DRAWER - Keeping logic exactly the same as requested */}
       {drawerItem && (
         <>
           <div
@@ -628,7 +633,6 @@ export default function PresupuestosPage({ refreshTrigger }) {
               transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
             }}
           >
-            {/* Drawer Content - Unchanged from Source 4 */}
             <div className="h-16 border-b bg-gray-50 px-6 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-gray-800">
@@ -636,6 +640,9 @@ export default function PresupuestosPage({ refreshTrigger }) {
                 </h3>
                 <p className="text-xs text-gray-400">
                   #{drawerItem.id} · {drawerItem.client_name}
+                  {drawerItem.is_date_tentative
+                    ? " (Fechas por determinar)"
+                    : ""}
                 </p>
               </div>
               <button
@@ -782,7 +789,6 @@ export default function PresupuestosPage({ refreshTrigger }) {
               </button>
             </div>
             <div className="flex-1 overflow-y-visible p-6 space-y-5">
-              {/* --- NEW CLIENT AUTOCOMPLETE COMPONENT --- */}
               <div className="relative" ref={searchWrapperRef}>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Cliente
@@ -802,7 +808,7 @@ export default function PresupuestosPage({ refreshTrigger }) {
                       setClientSearchTerm(e.target.value);
                       setShowClientDropdown(true);
                       if (createForm.client)
-                        setCreateForm({ ...createForm, client: "" }); // Reset ID if user types again
+                        setCreateForm({ ...createForm, client: "" });
                     }}
                     className="w-full pl-9 pr-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   />
@@ -844,7 +850,6 @@ export default function PresupuestosPage({ refreshTrigger }) {
                   </div>
                 )}
               </div>
-              {/* -------------------------------------- */}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -885,42 +890,67 @@ export default function PresupuestosPage({ refreshTrigger }) {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Inicio del evento
-                  </label>
-                  <input
-                    required
-                    type="datetime-local"
-                    value={createForm.event_start}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        event_start: e.target.value,
-                      })
-                    }
-                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Fin del evento
-                  </label>
-                  <input
-                    required
-                    type="datetime-local"
-                    value={createForm.event_end}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        event_end: e.target.value,
-                      })
-                    }
-                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_date_tentative"
+                  checked={createForm.is_date_tentative}
+                  onChange={(e) =>
+                    setCreateForm({
+                      ...createForm,
+                      is_date_tentative: e.target.checked,
+                    })
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                />
+                <label
+                  htmlFor="is_date_tentative"
+                  className="text-sm font-semibold text-gray-700 select-none cursor-pointer"
+                >
+                  Fechas por determinar (Reserva tentativa)
+                </label>
               </div>
+
+              {!createForm.is_date_tentative && (
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Inicio del evento
+                    </label>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={createForm.event_start}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          event_start: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Fin del evento
+                    </label>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={createForm.event_end}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          event_end: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Servicios Incluidos
