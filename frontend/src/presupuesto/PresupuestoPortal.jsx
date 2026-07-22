@@ -40,11 +40,13 @@ export default function PresupuestoPortal() {
         else if (data.status === "Rejected") setUiStatus(STATUS.REJECTED);
         else setUiStatus(STATUS.READY);
       })
-      .catch(() => setUiStatus(STATUS.ERROR));
+      .catch((err) => {
+        console.error("Error fetching portal data:", err);
+        setUiStatus(STATUS.ERROR);
+      });
   }, [token]);
 
   // Fetch PDF as blob once version is loaded
-  // AFTER — routes through your token-gated view
   useEffect(() => {
     if (!token) return;
     fetch(`${PORTAL_BASE}/portal/presupuesto/${token}/pdf/`, {
@@ -56,8 +58,9 @@ export default function PresupuestoPortal() {
       })
       .then((blob) => {
         if (blob) setPdfBlobUrl(URL.createObjectURL(blob));
-      });
-  }, [token]); // depends on token, not version.pdf_file
+      })
+      .catch((err) => console.error("Error fetching PDF:", err));
+  }, [token]);
 
   // Cleanup blob URL on unmount
   useEffect(() => {
@@ -69,17 +72,31 @@ export default function PresupuestoPortal() {
   const handleAction = async (action) => {
     if (uiStatus !== STATUS.READY) return;
     setUiStatus(STATUS.WORKING);
-    const res = await fetch(
-      `${PORTAL_BASE}/portal/presupuesto/${token}/${action}/`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-      },
-    );
-    if (res.ok)
-      setUiStatus(action === "accept" ? STATUS.ACCEPTED : STATUS.REJECTED);
-    else setUiStatus(STATUS.ERROR);
+
+    try {
+      const res = await fetch(
+        `${PORTAL_BASE}/portal/presupuesto/${token}/${action}/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        },
+      );
+
+      if (res.ok) {
+        setUiStatus(action === "accept" ? STATUS.ACCEPTED : STATUS.REJECTED);
+      } else {
+        const errorText = await res.text();
+        console.error(`Backend returned ${res.status}:`, errorText);
+        setUiStatus(STATUS.ERROR);
+      }
+    } catch (err) {
+      console.error("Network or fetch error during action:", err);
+      setUiStatus(STATUS.ERROR);
+    }
   };
 
   if (uiStatus === STATUS.LOADING)
@@ -109,7 +126,7 @@ export default function PresupuestoPortal() {
 
   return (
     <Shell>
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         {/* Header */}
         <div className="px-6 pt-6 pb-5 border-b border-gray-100">
           <span className="inline-block text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1 mb-3">
@@ -127,8 +144,22 @@ export default function PresupuestoPortal() {
         <div className="px-6 divide-y divide-gray-50">
           <Row label="Cliente" value={version.client_name} />
           <Row label="Tipo de evento" value={version.event_type} />
-          <Row label="Inicio" value={formatDate(version.event_start)} />
-          <Row label="Fin" value={formatDate(version.event_end)} />
+
+          {version.is_date_tentative ? (
+            <Row label="Fechas" value="Por determinar (Reserva tentativa)" />
+          ) : (
+            <>
+              <Row label="Inicio" value={formatDate(version.event_start)} />
+              <Row label="Fin" value={formatDate(version.event_end)} />
+            </>
+          )}
+
+          {version.requires_security_deposit && (
+            <Row
+              label="Fianza Requerida"
+              value={formatCurrency(version.security_deposit_amount)}
+            />
+          )}
         </div>
 
         {/* Total */}
@@ -154,13 +185,13 @@ export default function PresupuestoPortal() {
               <a
                 href={pdfBlobUrl}
                 download="presupuesto.pdf"
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-blue-600 hover:underline font-medium"
               >
                 Descargar ↓
               </a>
             </div>
             <div
-              className="mx-6 mb-5 rounded-lg overflow-hidden border border-gray-200"
+              className="mx-6 mb-5 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
               style={{ height: "600px" }}
             >
               <iframe
@@ -174,7 +205,7 @@ export default function PresupuestoPortal() {
 
         {/* Actions */}
         {uiStatus === STATUS.ACCEPTED && (
-          <div className="px-6 py-4 bg-green-50 border-t border-green-100 text-sm text-green-700 flex items-center gap-2">
+          <div className="px-6 py-4 bg-green-50 border-t border-green-100 text-sm text-green-700 flex items-center gap-2 font-medium">
             ✓ Has aceptado este presupuesto. Recibirás una confirmación por
             email.
           </div>
@@ -189,7 +220,7 @@ export default function PresupuestoPortal() {
             <button
               onClick={() => handleAction("accept")}
               disabled={uiStatus === STATUS.WORKING}
-              className="flex-1 bg-gray-900 text-white text-sm font-medium py-2.5 px-5 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 bg-gray-900 text-white text-sm font-medium py-2.5 px-5 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {uiStatus === STATUS.WORKING
                 ? "Procesando..."
@@ -198,7 +229,7 @@ export default function PresupuestoPortal() {
             <button
               onClick={() => handleAction("reject")}
               disabled={uiStatus === STATUS.WORKING}
-              className="text-sm text-gray-400 border border-gray-200 py-2.5 px-5 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="text-sm text-gray-500 bg-white border border-gray-200 py-2.5 px-5 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               Rechazar
             </button>
@@ -228,13 +259,16 @@ function Shell({ children }) {
 function Row({ label, value }) {
   return (
     <div className="flex justify-between items-center py-3.5 gap-4">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className="text-sm text-gray-800 text-right">{value}</span>
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm font-medium text-gray-900 text-right">
+        {value}
+      </span>
     </div>
   );
 }
 
 function formatDate(iso) {
+  if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "long",
