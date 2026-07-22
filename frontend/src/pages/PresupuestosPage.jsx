@@ -16,6 +16,7 @@ import {
   Receipt,
   Scale,
   Search,
+  Shield,
 } from "lucide-react";
 import ClientModal from "../components/ClientModal";
 
@@ -240,6 +241,8 @@ export default function PresupuestosPage({ refreshTrigger }) {
     event_start: "",
     event_end: "",
     is_date_tentative: false,
+    requires_security_deposit: false,
+    security_deposit_amount: "",
     notes: "",
   });
   const [createLineItems, setCreateLineItems] = useState([]);
@@ -357,6 +360,8 @@ export default function PresupuestosPage({ refreshTrigger }) {
       event_start: "",
       event_end: "",
       is_date_tentative: false,
+      requires_security_deposit: false,
+      security_deposit_amount: "",
       notes: "",
     });
     setClientSearchTerm("");
@@ -377,6 +382,9 @@ export default function PresupuestosPage({ refreshTrigger }) {
           ? null
           : createForm.event_start,
         event_end: createForm.is_date_tentative ? null : createForm.event_end,
+        security_deposit_amount: createForm.requires_security_deposit
+          ? parseFloat(createForm.security_deposit_amount || 0)
+          : 0,
         line_items: createLineItems.map((li) => ({
           catalog_item_id: li.catalog_item_id,
           quantity: parseFloat(li.quantity),
@@ -385,7 +393,6 @@ export default function PresupuestosPage({ refreshTrigger }) {
         })),
       };
 
-      // Just create it as a Draft. No email dispatch here.
       await api.post("presupuestos/", payload);
 
       fetchData();
@@ -448,14 +455,12 @@ export default function PresupuestosPage({ refreshTrigger }) {
 
   const handleSendToClient = async () => {
     try {
-      // 1. Send it via backend API to change status to "Sent"
       const response = await api.post(`presupuestos/${drawerItem.id}/send/`);
       setPresupuestos(
         presupuestos.map((p) => (p.id === drawerItem.id ? response.data : p)),
       );
       setDrawerItem(response.data);
 
-      // 2. Trigger the simulated email popup UNLESS it's an AIRBNB event
       if (drawerItem.event_type !== "AIRBNB") {
         const activeVer = getActiveVersion(response.data);
         setSimulatedEmailPopup({
@@ -708,6 +713,23 @@ export default function PresupuestosPage({ refreshTrigger }) {
                     </div>
                   </div>
 
+                  {drawerItem.requires_security_deposit && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 flex justify-between items-center shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <Shield size={18} className="text-amber-600" />
+                        <span className="text-sm font-bold text-amber-800">
+                          Fianza Requerida (Security Deposit)
+                        </span>
+                      </div>
+                      <div className="text-sm font-black text-amber-600">
+                        {parseFloat(drawerItem.security_deposit_amount).toFixed(
+                          2,
+                        )}
+                        €
+                      </div>
+                    </div>
+                  )}
+
                   {previewVersion?.pdf_file && (
                     <div>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
@@ -943,25 +965,75 @@ export default function PresupuestosPage({ refreshTrigger }) {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="is_date_tentative"
-                  checked={createForm.is_date_tentative}
-                  onChange={(e) =>
-                    setCreateForm({
-                      ...createForm,
-                      is_date_tentative: e.target.checked,
-                    })
-                  }
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                />
-                <label
-                  htmlFor="is_date_tentative"
-                  className="text-sm font-semibold text-gray-700 select-none cursor-pointer"
-                >
-                  Fechas por determinar (Reserva tentativa)
-                </label>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_date_tentative"
+                    checked={createForm.is_date_tentative}
+                    onChange={(e) =>
+                      setCreateForm({
+                        ...createForm,
+                        is_date_tentative: e.target.checked,
+                      })
+                    }
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                  />
+                  <label
+                    htmlFor="is_date_tentative"
+                    className="text-sm font-semibold text-gray-700 select-none cursor-pointer"
+                  >
+                    Fechas por determinar (Tentativa)
+                  </label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="requires_security_deposit"
+                    checked={createForm.requires_security_deposit}
+                    onChange={(e) =>
+                      setCreateForm({
+                        ...createForm,
+                        requires_security_deposit: e.target.checked,
+                      })
+                    }
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                  />
+                  <label
+                    htmlFor="requires_security_deposit"
+                    className="text-sm font-semibold text-gray-700 select-none cursor-pointer"
+                  >
+                    Requiere Fianza
+                  </label>
+                </div>
+
+                {createForm.requires_security_deposit && (
+                  <div className="flex items-center space-x-2 animate-in fade-in">
+                    <label className="text-sm font-semibold text-gray-700">
+                      Importe:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        step="0.01"
+                        value={createForm.security_deposit_amount}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            security_deposit_amount: e.target.value,
+                          })
+                        }
+                        className="w-24 pl-2 pr-6 py-1 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <span className="absolute right-2 top-1.5 text-xs text-gray-500">
+                        €
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {!createForm.is_date_tentative && (
