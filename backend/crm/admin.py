@@ -77,7 +77,7 @@ class PresupuestoVersionAdmin(admin.ModelAdmin):
     list_display  = ('__str__', 'presupuesto', 'version_number', 'status', 'total_amount', 'created_at')
     list_filter   = ('status',)
     search_fields = ('presupuesto__title', 'presupuesto__client__name')
-    readonly_fields = ('version_number', 'created_at', 'archived_at')
+    readonly_fields = ('version_number', 'token', 'viewed_at', 'accepted_at', 'created_at', 'archived_at')
     inlines       = [LineItemInline]
 
 

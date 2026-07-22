@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
+import uuid
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +145,7 @@ class PresupuestoVersion(models.Model):
     STATUS_CHOICES = (
         ('Draft',    'Draft'),
         ('Sent',     'Sent'),
+        ('Viewed',   'Viewed'),
         ('Accepted', 'Accepted'),
         ('Rejected', 'Rejected'),
         ('Archived', 'Archived'),
@@ -157,6 +159,12 @@ class PresupuestoVersion(models.Model):
     notes          = models.TextField(blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
     archived_at    = models.DateTimeField(null=True, blank=True)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    token_expires_at = models.DateTimeField(null=True, blank=True)  # optional
+    
+    # State
+    viewed_at = models.DateTimeField(null=True, blank=True)   # audit
+    accepted_at = models.DateTimeField(null=True, blank=True) # idempotency key
 
     class Meta:
         unique_together = ('presupuesto', 'version_number')
@@ -164,6 +172,23 @@ class PresupuestoVersion(models.Model):
 
     def __str__(self):
         return f"Presupuesto #{self.presupuesto.id} v{self.version_number} ({self.status})"
+
+    def mark_viewed(self):
+        """Call this when the portal page loads. Idempotent."""
+        if self.viewed_at is None:
+            PresupuestoVersion.objects.filter(pk=self.pk, viewed_at__isnull=True).update(
+                status='Viewed',
+                viewed_at=timezone.now()
+            )
+    
+    def is_token_valid(self):
+        if self.token_expires_at and timezone.now() > self.token_expires_at:
+            return False
+        return True
+
+    def is_actionable(self):
+        """Client can only accept/reject if in Sent or Viewed state."""
+        return self.status in ('Sent', 'Viewed')
 
 
 # ---------------------------------------------------------------------------

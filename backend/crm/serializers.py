@@ -131,6 +131,26 @@ class PresupuestoWriteSerializer(serializers.ModelSerializer):
         fields = ('client', 'title', 'event_type', 'event_start', 'event_end')
 
 
+class PortalPresupuestoVersionSerializer(serializers.ModelSerializer):
+    client_name  = serializers.CharField(source='presupuesto.client.name')
+    title        = serializers.CharField(source='presupuesto.title')
+    event_start  = serializers.DateTimeField(source='presupuesto.event_start')
+    event_end    = serializers.DateTimeField(source='presupuesto.event_end')
+    event_type   = serializers.CharField(source='presupuesto.event_type')
+
+    # serializer — stop exposing the real file path entirely
+    def get_pdf_file(self, obj):
+        if not obj.pdf_file:
+            return None
+        return f"/api/portal/presupuesto/{obj.token}/pdf/"
+
+    class Meta:
+        model  = PresupuestoVersion
+        fields = [
+            'version_number', 'status', 'total_amount',
+            'notes', 'pdf_file', 'created_at',
+            'client_name', 'title', 'event_start', 'event_end', 'event_type',
+        ]
 # ---------------------------------------------------------------------------
 # Invoice
 # ---------------------------------------------------------------------------

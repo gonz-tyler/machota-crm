@@ -6,11 +6,13 @@ from django.conf import settings
 from django.db import transaction
 from django.db import models
 from django.template.loader import render_to_string
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from weasyprint import HTML
+from django.http import FileResponse
 
 from .models import (
     Client, Event, ServiceCatalogItem, ServicePriceBand,
@@ -19,7 +21,7 @@ from .models import (
 from .serializers import (
     ClientSerializer, EventSerializer, ServiceCatalogItemSerializer,
     PresupuestoSerializer, PresupuestoWriteSerializer, InvoiceSerializer,
-    PresupuestoVersionSerializer, LineItemWriteSerializer
+    PresupuestoVersionSerializer, LineItemWriteSerializer, PortalPresupuestoVersionSerializer
 )
 
 @api_view(['GET'])
@@ -37,6 +39,89 @@ def current_user(request):
         'last_name': user.last_name
     })
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def portal_get_version(request, token):
+    version = get_object_or_404(PresupuestoVersion, token=token)
+
+    if not version.is_token_valid():
+        return Response({'error': 'Este enlace ha expirado.'}, status=410)
+
+    # Mark as Viewed on first open — idempotent, safe to call every time
+    version.mark_viewed()
+
+    # Re-fetch after potential update so serializer sees fresh status
+    version.refresh_from_db()
+
+    serializer = PortalPresupuestoVersionSerializer(version)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def portal_accept_version(request, token):
+    version = get_object_or_404(PresupuestoVersion, token=token)
+
+    if not version.is_token_valid():
+        return Response({'error': 'Este enlace ha expirado.'}, status=410)
+
+    if not version.is_actionable():
+        return Response({'status': version.status}, status=200)
+
+    updated = PresupuestoVersion.objects.filter(
+        token=token,
+        accepted_at__isnull=True
+    ).update(
+        status='Accepted',
+        accepted_at=timezone.now()
+    )
+
+    if updated == 1:
+        send_confirmation_email(version)
+
+    return Response({'status': 'Accepted'})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def portal_reject_version(request, token):
+    version = get_object_or_404(PresupuestoVersion, token=token)
+
+    if not version.is_token_valid():
+        return Response({'error': 'Este enlace ha expirado.'}, status=410)
+
+    if not version.is_actionable():
+        return Response({'status': version.status}, status=200)
+
+    PresupuestoVersion.objects.filter(
+        token=token,
+        accepted_at__isnull=True
+    ).update(
+        status='Rejected',
+    )
+
+    return Response({'status': 'Rejected'})
+
+
+# views.py
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def portal_get_pdf(request, token):
+    version = get_object_or_404(PresupuestoVersion, token=token)
+
+    if not version.is_token_valid():
+        return Response({'error': 'Enlace expirado.'}, status=410)
+
+    if not version.pdf_file:
+        return Response({'error': 'No hay PDF.'}, status=404)
+
+    response = FileResponse(
+        version.pdf_file.open('rb'),
+        content_type='application/pdf',
+    )
+    response['Content-Disposition'] = 'inline; filename="presupuesto.pdf"'
+    response['Cache-Control'] = 'no-store'
+    return response
 # ---------------------------------------------------------------------------
 # Core PDF Production Engine (WeasyPrint Backend Integration)
 # ---------------------------------------------------------------------------
