@@ -17,7 +17,7 @@ import {
   Scale,
   Search,
 } from "lucide-react";
-import ClientModal from "../components/ClientModal"; // Adjust path as needed
+import ClientModal from "../components/ClientModal";
 
 // ---------------------------------------------------------------------------
 // Constants & Styles
@@ -384,7 +384,10 @@ export default function PresupuestosPage({ refreshTrigger }) {
           client_display_name: li.client_display_name,
         })),
       };
+
+      // Just create it as a Draft. No email dispatch here.
       await api.post("presupuestos/", payload);
+
       fetchData();
       resetCreateState();
     } catch (error) {
@@ -445,16 +448,23 @@ export default function PresupuestosPage({ refreshTrigger }) {
 
   const handleSendToClient = async () => {
     try {
+      // 1. Send it via backend API to change status to "Sent"
       const response = await api.post(`presupuestos/${drawerItem.id}/send/`);
       setPresupuestos(
         presupuestos.map((p) => (p.id === drawerItem.id ? response.data : p)),
       );
       setDrawerItem(response.data);
-      setSimulatedEmailPopup({
-        email: drawerItem.client_email,
-        title: drawerItem.title,
-        version: getActiveVersion(response.data)?.version_number || 1,
-      });
+
+      // 2. Trigger the simulated email popup UNLESS it's an AIRBNB event
+      if (drawerItem.event_type !== "AIRBNB") {
+        const activeVer = getActiveVersion(response.data);
+        setSimulatedEmailPopup({
+          name: drawerItem.client_name,
+          email: drawerItem.client_email,
+          title: drawerItem.title,
+          token: activeVer?.token || "<uuid>",
+        });
+      }
     } catch (error) {
       alert("Error al procesar la salida de despacho documental.");
     }
@@ -764,6 +774,48 @@ export default function PresupuestosPage({ refreshTrigger }) {
                   <Download size={15} /> Descargar PDF
                 </a>
               )}
+              {drawerItem.active_status === "Draft" && (
+                <button
+                  onClick={handleSendToClient}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <Send size={15} /> Enviar al Cliente
+                </button>
+              )}
+              {drawerItem.active_status === "Sent" && (
+                <>
+                  <button
+                    onClick={() => setShowRejectionOptionsModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <XCircle size={15} /> Marcar Rechazado
+                  </button>
+                  <button
+                    onClick={handleAccept}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                  >
+                    <CheckCircle size={15} /> Marcar Aceptado
+                  </button>
+                </>
+              )}
+              {drawerItem.active_status === "Accepted" && (
+                <>
+                  <button
+                    onClick={openNewVersionModal}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors shadow-sm"
+                  >
+                    <PackagePlus size={15} /> Nueva versión
+                  </button>
+                  {balanceDue > 0 && !drawerItem.has_final_invoice && (
+                    <button
+                      onClick={handleFinalInvoice}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      <Receipt size={15} /> Emitir Factura Final
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </>
@@ -975,6 +1027,71 @@ export default function PresupuestosPage({ refreshTrigger }) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* RE-STYLED SIMULATED SYSTEM DISPATCH BANNER POPUP (EMAIL EMULATION) */}
+      {simulatedEmailPopup && (
+        <div className="fixed bottom-5 right-5 bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-slate-700 z-50 max-w-md animate-slide-in">
+          <div className="flex justify-between items-start mb-2">
+            <h4 className="text-xs font-black tracking-widest text-blue-400 uppercase">
+              Simulación de Despacho Técnico
+            </h4>
+            <button
+              onClick={() => setSimulatedEmailPopup(null)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed mb-3">
+            Email sent to client <strong>{simulatedEmailPopup.name}</strong> at
+            email <strong>{simulatedEmailPopup.email}</strong> with link:
+          </p>
+          <div className="bg-slate-800 text-blue-300 p-3 rounded-lg text-xs font-mono font-bold break-all select-all border border-slate-700">
+            localhost:5173/portal/presupuesto/{simulatedEmailPopup.token}
+          </div>
+        </div>
+      )}
+
+      {showRejectionOptionsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border text-center animate-scale-up">
+            <div className="mx-auto w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-4">
+              <XCircle size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              Propuesta Comercial Rechazada
+            </h3>
+            <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+              ¿Cómo deseas procesar la respuesta negativa del cliente? Puedes
+              cerrar el expediente declarando el encargo perdido o abrir una
+              mesa de negociación modificando los términos comerciales actuales.
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleRejectAndRenegotiate}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-bold text-sm py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <FilePenLine size={16} /> Ajustar Detalles y Re-negociar
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectLostJob}
+                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-bold text-sm py-3 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                <Trash2 size={16} /> Cerrar Expediente (Misión Perdida)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRejectionOptionsModal(false)}
+                className="w-full text-xs font-semibold text-gray-400 hover:text-gray-600 pt-2 transition-colors"
+              >
+                Cancelar Acción
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
