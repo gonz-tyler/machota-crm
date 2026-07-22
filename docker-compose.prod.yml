@@ -18,7 +18,11 @@ services:
       context: ./backend
     restart: always
     # Gunicorn handles multi-threaded web workers natively
-    command: gunicorn machotacrm.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    # command: gunicorn machotacrm.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+            python manage.py collectstatic --noinput &&
+            gunicorn machotacrm.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     volumes:
       - media_data:/app/media
       - static_data:/app/static
@@ -41,22 +45,29 @@ services:
       - frontend_build:/usr/share/nginx/html
 
   nginx:
-    image: nginx:alpine
+    image: nginx:alpine # was missing entirely
     restart: always
-    # Only expose port 80 to the public web browser
     ports:
       - "80:80"
+      - "443:443" # add this
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - media_data:/app/media:ro
       - static_data:/app/static:ro
       - frontend_build:/usr/share/nginx/html:ro
-    depends_on:
-      - backend
-      - frontend
+      - certbot_certs:/etc/letsencrypt:ro # add this
+      - certbot_www:/var/www/certbot:ro # add this
+
+  certbot: # add this service
+    image: certbot/certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
 
 volumes:
   mysql_data:
   media_data:
   static_data:
   frontend_build:
+  certbot_certs:
+  certbot_www:
