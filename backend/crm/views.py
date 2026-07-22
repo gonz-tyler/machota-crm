@@ -76,8 +76,9 @@ def portal_accept_version(request, token):
         accepted_at=timezone.now()
     )
 
-    if updated == 1:
-        send_confirmation_email(version)
+    # TODO: add confirmation email logic
+    # if updated == 1:
+        # send_confirmation_email(version)
 
     return Response({'status': 'Accepted'})
 
