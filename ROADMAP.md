@@ -4,10 +4,10 @@
 
 **Branch Name:** `feat/budget-client-creation`
 
-- [ ] UI/Logic to add a client directly from the budget creation screen if they don't exist.
-- [ ] Add "TBD" (To Be Determined) flag for event dates.
-- [ ] Add "Airbnb" source flag to budgets (forces system to suppress client-facing emails).
-- [ ] Add financial tracking fields to budget model: Down Payment amount, _Fianza_ (Security Deposit) amount/required flag.
+- [x] UI/Logic to add a client directly from the budget creation screen if they don't exist.
+- [x] Add "TBD" (To Be Determined) flag for event dates.
+- [x] Add "Airbnb" source flag to budgets (forces system to suppress client-facing emails).
+- [x] Add financial tracking fields to budget model: Down Payment amount, _Fianza_ (Security Deposit) amount/required flag.
 
 ## Phase 2: The Client Portal & Compliance
 
