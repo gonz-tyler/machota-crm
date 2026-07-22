@@ -1,21 +1,14 @@
 import React, { useState, useEffect } from "react";
 import api from "../api";
-import { Plus, Mail, Phone, Building2, Trash2, Edit2, X } from "lucide-react";
+import { Plus, Mail, Phone, Building2, Trash2, Edit2 } from "lucide-react";
+import ClientModal from "../components/ClientModal"; // Adjust path as needed
 
 export default function ClientsPage() {
-  // Data State
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal State
   const [showClientModal, setShowClientModal] = useState(false);
-  const [editingClientId, setEditingClientId] = useState(null);
-  const [clientFormData, setClientFormData] = useState({
-    name: "",
-    email: "",
-    company: "",
-    phone: "",
-  });
+  const [clientToEdit, setClientToEdit] = useState(null);
 
   useEffect(() => {
     fetchClients();
@@ -32,52 +25,24 @@ export default function ClientsPage() {
     }
   };
 
-  const handleClientInputChange = (e) => {
-    setClientFormData({ ...clientFormData, [e.target.name]: e.target.value });
-  };
-
-  const closeClientModal = () => {
-    setShowClientModal(false);
-    setEditingClientId(null);
-    setClientFormData({ name: "", email: "", company: "", phone: "" });
-  };
-
   const editClient = (client) => {
-    setClientFormData({
-      name: client.name,
-      email: client.email,
-      company: client.company || "",
-      phone: client.phone || "",
-    });
-    setEditingClientId(client.id);
+    setClientToEdit(client);
     setShowClientModal(true);
   };
 
-  const handleClientSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingClientId) {
-        const response = await api.put(
-          `clients/${editingClientId}/`,
-          clientFormData,
-        );
-        setClients(
-          clients.map((c) => (c.id === editingClientId ? response.data : c)),
-        );
-      } else {
-        const response = await api.post("clients/", clientFormData);
-        setClients([response.data, ...clients]);
-      }
-      closeClientModal();
-    } catch (error) {
-      alert("Error saving client. Make sure the email is unique.");
-      console.error(error);
+  const handleClientSuccess = (clientData, isEdit) => {
+    if (isEdit) {
+      setClients(clients.map((c) => (c.id === clientData.id ? clientData : c)));
+    } else {
+      setClients([clientData, ...clients]);
     }
   };
 
   const deleteClient = async (id) => {
     if (
-      window.confirm("Delete this client? This will also delete their events.")
+      window.confirm(
+        "¿Eliminar este cliente? Esto también eliminará sus eventos y presupuestos.",
+      )
     ) {
       try {
         await api.delete(`clients/${id}/`);
@@ -93,7 +58,10 @@ export default function ClientsPage() {
       <header className="h-16 bg-white border-b flex items-center justify-between px-8 shrink-0">
         <h2 className="text-xl font-semibold text-gray-800">Clientes</h2>
         <button
-          onClick={() => setShowClientModal(true)}
+          onClick={() => {
+            setClientToEdit(null);
+            setShowClientModal(true);
+          }}
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all active:scale-95"
         >
           <Plus size={18} />
@@ -160,14 +128,12 @@ export default function ClientsPage() {
                       <button
                         onClick={() => editClient(client)}
                         className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all mr-2"
-                        title="Edit Client"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button
                         onClick={() => deleteClient(client.id)}
                         className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
-                        title="Delete Client"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -180,81 +146,12 @@ export default function ClientsPage() {
         </div>
       </main>
 
-      {/* MODAL JSX - This was missing! */}
-      {showClientModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="text-lg font-bold text-gray-800">
-                {editingClientId ? "Edit Client" : "Add New Client"}
-              </h3>
-              <button
-                onClick={closeClientModal}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleClientSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre Completo
-                </label>
-                <input
-                  required
-                  name="name"
-                  value={clientFormData.name}
-                  onChange={handleClientInputChange}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  required
-                  type="email"
-                  name="email"
-                  value={clientFormData.email}
-                  onChange={handleClientInputChange}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Compañia
-                </label>
-                <input
-                  name="company"
-                  value={clientFormData.company}
-                  onChange={handleClientInputChange}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Numero de Telefono
-                </label>
-                <input
-                  name="phone"
-                  value={clientFormData.phone}
-                  onChange={handleClientInputChange}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
-                >
-                  {editingClientId ? "Save Changes" : "Create Client"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ClientModal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onSuccess={handleClientSuccess}
+        clientToEdit={clientToEdit}
+      />
     </div>
   );
 }
