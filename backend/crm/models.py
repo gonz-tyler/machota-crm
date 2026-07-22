@@ -88,14 +88,16 @@ class ServicePriceBand(models.Model):
 # ---------------------------------------------------------------------------
 
 class Presupuesto(models.Model):
-    client            = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='presupuestos')
-    event             = models.OneToOneField(Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuesto')
-    title             = models.CharField(max_length=255)
-    event_type        = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
-    event_start       = models.DateTimeField(null=True, blank=True)
-    event_end         = models.DateTimeField(null=True, blank=True)
-    is_date_tentative = models.BooleanField(default=False)
-    created_at        = models.DateTimeField(auto_now_add=True)
+    client                    = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='presupuestos')
+    event                     = models.OneToOneField(Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='presupuesto')
+    title                     = models.CharField(max_length=255)
+    event_type                = models.CharField(max_length=50, choices=EVENT_TYPES, default='Corporativo')
+    event_start               = models.DateTimeField(null=True, blank=True)
+    event_end                 = models.DateTimeField(null=True, blank=True)
+    is_date_tentative         = models.BooleanField(default=False)
+    requires_security_deposit = models.BooleanField(default=False)
+    security_deposit_amount   = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    created_at                = models.DateTimeField(auto_now_add=True)
 
     @property
     def active_version(self):

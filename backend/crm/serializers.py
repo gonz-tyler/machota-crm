@@ -52,11 +52,10 @@ class ServiceCatalogItemSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class LineItemSerializer(serializers.ModelSerializer):
-    # These are resolved server-side from the chosen price band — read only
     unit_price   = serializers.DecimalField(max_digits=8,  decimal_places=2, read_only=True)
     line_total   = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     unit_label   = serializers.CharField(read_only=True)
-    display_name = serializers.CharField(read_only=True)  # property on the model
+    display_name = serializers.CharField(read_only=True) 
 
     class Meta:
         model  = LineItem
@@ -64,10 +63,6 @@ class LineItemSerializer(serializers.ModelSerializer):
 
 
 class LineItemWriteSerializer(serializers.Serializer):
-    """
-    Used when staff submits a new version's line items.
-    The view resolves the price band and calculates totals from these inputs.
-    """
     catalog_item_id     = serializers.IntegerField()
     quantity            = serializers.DecimalField(max_digits=8, decimal_places=2)
     show_on_client_pdf  = serializers.BooleanField(default=True)
@@ -91,16 +86,12 @@ class PresupuestoVersionSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class PresupuestoSerializer(serializers.ModelSerializer):
-    # Flat client fields kept from the original so the frontend table still works
     client_name    = serializers.CharField(source='client.name',    read_only=True)
     client_email   = serializers.CharField(source='client.email',   read_only=True)
     client_company = serializers.CharField(source='client.company', read_only=True)
 
-    # Nested versions — full history, ordered newest first (set on model Meta)
     versions = PresupuestoVersionSerializer(many=True, read_only=True)
 
-    # Convenience fields pulled from the active version so the table row
-    # doesn't have to dig into the nested array
     active_status = serializers.SerializerMethodField()
     active_amount = serializers.SerializerMethodField()
     active_version_id = serializers.SerializerMethodField()
@@ -123,22 +114,26 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 
 
 class PresupuestoWriteSerializer(serializers.ModelSerializer):
-    """Flat write serializer — line items are handled separately by the view."""
     event_start = serializers.DateTimeField(required=False, allow_null=True)
     event_end   = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model  = Presupuesto
-        fields = ('client', 'title', 'event_type', 'event_start', 'event_end', 'is_date_tentative')
+        fields = (
+            'client', 'title', 'event_type', 'event_start', 'event_end', 
+            'is_date_tentative', 'requires_security_deposit', 'security_deposit_amount'
+        )
 
 
 class PortalPresupuestoVersionSerializer(serializers.ModelSerializer):
-    client_name       = serializers.CharField(source='presupuesto.client.name')
-    title             = serializers.CharField(source='presupuesto.title')
-    event_start       = serializers.DateTimeField(source='presupuesto.event_start', allow_null=True)
-    event_end         = serializers.DateTimeField(source='presupuesto.event_end', allow_null=True)
-    event_type        = serializers.CharField(source='presupuesto.event_type')
-    is_date_tentative = serializers.BooleanField(source='presupuesto.is_date_tentative')
+    client_name               = serializers.CharField(source='presupuesto.client.name')
+    title                     = serializers.CharField(source='presupuesto.title')
+    event_start               = serializers.DateTimeField(source='presupuesto.event_start', allow_null=True)
+    event_end                 = serializers.DateTimeField(source='presupuesto.event_end', allow_null=True)
+    event_type                = serializers.CharField(source='presupuesto.event_type')
+    is_date_tentative         = serializers.BooleanField(source='presupuesto.is_date_tentative')
+    requires_security_deposit = serializers.BooleanField(source='presupuesto.requires_security_deposit')
+    security_deposit_amount   = serializers.DecimalField(source='presupuesto.security_deposit_amount', max_digits=10, decimal_places=2)
 
     def get_pdf_file(self, obj):
         if not obj.pdf_file:
@@ -150,7 +145,8 @@ class PortalPresupuestoVersionSerializer(serializers.ModelSerializer):
         fields = [
             'version_number', 'status', 'total_amount',
             'notes', 'pdf_file', 'created_at',
-            'client_name', 'title', 'event_start', 'event_end', 'event_type', 'is_date_tentative'
+            'client_name', 'title', 'event_start', 'event_end', 'event_type', 
+            'is_date_tentative', 'requires_security_deposit', 'security_deposit_amount'
         ]
 
 
