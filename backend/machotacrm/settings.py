@@ -17,6 +17,7 @@ DEBUG = os.getenv('DEBUG') == 'True'
 
 ALLOWED_HOSTS = []
 
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -27,6 +28,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 if DEBUG:
     # 1. Disable the strict default SAMEORIGIN middleware block for local frames
     X_FRAME_OPTIONS = 'ALLOWALL'
+
+    CORS_ALLOWED_CREDENTIALS = True
     
     # 2. Re-verify your development CORS origins accept the frontend ports
     CORS_ALLOW_CREDENTIALS = True
@@ -34,7 +37,13 @@ if DEBUG:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 else:
+    ALLOWED_HOSTS = ['localhost']
     # Keep your production environment completely locked down and secure
     X_FRAME_OPTIONS = 'SAMEORIGIN'
 
@@ -147,6 +156,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'static') 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
