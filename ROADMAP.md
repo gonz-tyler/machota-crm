@@ -13,10 +13,10 @@
 
 **Branch Name:** `feat/client-portal-tnc`
 
-- [ ] Generate secure, unique UUID links for budget viewing.
-- [ ] Build the web view/screen for the client portal.
-- [ ] Implement Terms & Conditions UI.
-- [ ] Add scroll-tracking logic: Client must scroll to the absolute bottom of the T&C before the "Accept" button becomes clickable.
+- [x] Generate secure, unique UUID links for budget viewing.
+- [x] Build the web view/screen for the client portal.
+- [x] Implement Terms & Conditions UI.
+- [x] Add scroll-tracking logic: Client must scroll to the absolute bottom of the T&C before the "Accept" button becomes clickable.
 
 ## Phase 3: Initial Invoicing & Financials
 
